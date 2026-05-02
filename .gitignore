@@ -1,0 +1,11 @@
+node_modules
+build
+build_tmp
+
+*.test.js
+*.test.ts
+*.test.mts
+
+pcconfig.json
+pcconfig.*.json
+package-lock.json

@@ -1,0 +1,23 @@
+{
+  "name": "playcanvas-opti-pixel-examples",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "build/examples.js",
+  "scripts": {
+    "build:esbuild": "node ./build.mjs",
+    "watch:esbuild": "node ./watch.mjs",
+    "build": "npm run build:esbuild",
+    "watch": "npm run watch:esbuild"
+  },
+  "author": "Alexandr Shamarin",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "playcanvas": "^2.18.1",
+    "playcanvas-sync": "^2.0.4"
+  },
+  "dependencies": {
+    "playcanvas-opti-pixel": "^1.0.0"
+  }
+}
