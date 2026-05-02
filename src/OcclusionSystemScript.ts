@@ -182,6 +182,9 @@ export class OcclusionSystemScript extends pc.ScriptType {
         });
 
         this.on("attr:tester", () => {
+            if (this._occlusionSystem.hzb) {
+                this._occlusionSystem.hzb.enabled = this.tester === Tester.HZB;
+            }
             this._updateTester();
         });
 
