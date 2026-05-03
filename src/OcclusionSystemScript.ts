@@ -2,8 +2,10 @@ import {
     FRUSTUM_UNKNOWN, FRUSTUM_CONTAINED, FRUSTUM_INTERSECTS, FRUSTUM_OUTSIDE,
     OCCLUSION_UNKNOWN, OCCLUSION_OCCLUDED, OCCLUSION_VISIBLE,
     OcclusionCullingSystem,
-    isGPU2CPUReadbackOcclusionCulling,
-    IOcclusionCullingTester
+    IOcclusionCullingTester,
+    isGPU2CPUReadbackOcclusionCullingTester,
+    isGPUIndirectDrawOcclusionCullingTester,
+    IGPUIndirectDrawOcclusionCullingTester
 } from "playcanvas-opti-pixel";
 
 type TFrustumResult = typeof FRUSTUM_UNKNOWN | typeof FRUSTUM_CONTAINED | typeof FRUSTUM_INTERSECTS | typeof FRUSTUM_OUTSIDE;
@@ -44,17 +46,19 @@ export class CullingObject {
             return;
         }
 
+        // this line evaluates aabb
+        const aabb = this._meshInstance.aabb;
+
         // @ts-ignore
-        _tempSphere.center = this._meshInstance.aabb.center; // this line evaluates aabb
-        // @ts-ignore
-        _tempSphere.radius = this._meshInstance._aabb.halfExtents.length();
+        _tempSphere.center = aabb.center;
+        _tempSphere.radius = aabb.halfExtents.length();
 
         const visibleInFrustum = frustum.containsSphere(_tempSphere) as TFrustumResult;
 
         let occlusionStatus: TOcclusionResult = OCCLUSION_UNKNOWN;
         let finishVisible = visibleInFrustum !== FRUSTUM_OUTSIDE;
 
-        if (isGPU2CPUReadbackOcclusionCulling(this.occlusionTester)) {
+        if (isGPU2CPUReadbackOcclusionCullingTester(this.occlusionTester)) {
 
             if (finishVisible) {
                 this.outsideFrameStreak = 0;
@@ -164,13 +168,17 @@ export class OcclusionSystemScript extends pc.ScriptType {
     public postInitialize(): void {
 
         this._occlusionSystem = new OcclusionCullingSystem(this.app, this.capacity);
-        this._occlusionSystem.active = true;
+        this._occlusionSystem.active = this.autoRender;
         this._occlusionSystem.queriesLayerName = this.layerName;
         this._occlusionSystem.camera = this.cameraEntity.camera?.camera || null;
 
         this.on("disable", () => {
             this._clearPositions();
             this._clearObjects();
+        });
+
+        this.on("attr:autoRender", () => {
+            this._occlusionSystem.active = this.autoRender;
         });
 
         this.on("attr:cameraEntity", () => {
@@ -197,40 +205,79 @@ export class OcclusionSystemScript extends pc.ScriptType {
             this._randAndUpdatePositions();
         });
 
-        this.app.scene.on("precull", (cullCamera) => {
+        this.app.scene.on("precull", (cullCameraComponent: pc.CameraComponent) => {
+
+            if (this.cameraEntity.camera !== cullCameraComponent) {
+                return;
+            }
+
+            const camera = cullCameraComponent.camera;
+            const tester = this._occlusionSystem.hzbTester;
+            const hzbDebugger = this._occlusionSystem.hzbDebugger;
+
+            if (this.debugMipLevel) {
+                hzbDebugger?.debugMipLevel(this.mipLevel);
+            }
+
+            // For indirect draw we must always update buffer
+            if (this.tester === Tester.HZB) {
+                if (isGPUIndirectDrawOcclusionCullingTester(tester)) {
+                    this._handleIndirectDraw(tester, camera);
+                    return;
+                }
+            }
 
             if (this.autoRender) {
 
-                const camera = this.cameraEntity.camera!;
+                const frustum = camera.frustum;
 
-                if (camera === cullCamera) {
+                for (let i = 0; i < this._objects.length; i++) {
 
-                    const frustum = camera.frustum;
-                    const hzbDebugger = this._occlusionSystem.hzbDebugger;
+                    const object = this._objects[i];
 
-                    if (this.debugMipLevel) {
-                        hzbDebugger?.debugMipLevel(this.mipLevel);
-                    }
+                    object.handle(frustum);
 
-                    for (let i = 0; i < this._objects.length; i++) {
+                    if (object.frustumStatus !== FRUSTUM_OUTSIDE && this.debug) {
 
-                        const object = this._objects[i];
-
-                        object.handle(frustum);
-
-                        if (this.debug && object.frustumStatus !== FRUSTUM_OUTSIDE) {
-
-                            hzbDebugger?.debugItem(
-                                object.occlusionCullingIndex,
-                                true, true, this.debugMipLevel
-                            );
-                        }
+                        hzbDebugger?.debugItem(
+                            object.occlusionCullingIndex,
+                            true, true, this.debugMipLevel
+                        );
                     }
                 }
             }
         });
 
         this._updateWorld();
+    }
+
+    private _handleIndirectDraw(tester: IGPUIndirectDrawOcclusionCullingTester, camera: pc.Camera) {
+
+        for (let i = 0; i < this._objects.length; i++) {
+
+            const object = this._objects[i];
+            const meshInstance = object.entity.render?.meshInstances[0]!;
+
+            object.handle(camera.frustum);
+
+            if (object.frustumStatus !== FRUSTUM_OUTSIDE && meshInstance) {
+
+                const slot = this.app.graphicsDevice.getIndirectDrawSlot();
+                const prim = meshInstance.mesh?.primitive[meshInstance.renderStyle];
+
+                meshInstance.setIndirect(null, slot, 1);
+                tester.enqueue(object.occlusionCullingIndex, prim, slot, 1, 0);
+
+                if (this.debug) {
+                    this._occlusionSystem.hzbDebugger?.debugItem(
+                        object.occlusionCullingIndex,
+                        true, true, this.debugMipLevel
+                    );
+                }
+            }
+        }
+
+        tester.execute(camera, this.autoRender);
     }
 
     private _destroyCullObject(object: CullingObject) {
@@ -301,13 +348,16 @@ export class OcclusionSystemScript extends pc.ScriptType {
         return this._shapesType[index];
     }
 
-    private _updateTester() {
-
-        const tester = (this.tester === Tester.HZB ?
+    private _getTester() {
+        return (
+            this.tester === Tester.HZB ?
             this._occlusionSystem.hzbTester :
             this._occlusionSystem.queriesTester
         )!;
+    }
 
+    private _updateTester() {
+        const tester = this._getTester();
         for (const object of this._objects) {
             object.occlusionTester = tester;
         }
@@ -332,10 +382,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
         this._objects.length = this.capacity;
 
-        const tester = (this.tester === Tester.HZB ?
-            this._occlusionSystem.hzbTester :
-            this._occlusionSystem.queriesTester
-        )!;
+        const tester = this._getTester();
 
         for (let i = prevCount; i < this.capacity; i++) {
 
@@ -388,5 +435,5 @@ OcclusionSystemScript.attributes.add("radius", { type: 'number', default: 100, m
 OcclusionSystemScript.attributes.add("capacity", { type: 'number', default: 100, min: 0, max: 10000, step: 1, precision: 0, });
 OcclusionSystemScript.attributes.add("tester", { type: "number", enum: [
     { "HZB": Tester.HZB },
-    { "Queries": Tester.Queries }
+    { "Queries": Tester.Queries },
 ], default: Tester.HZB, });
