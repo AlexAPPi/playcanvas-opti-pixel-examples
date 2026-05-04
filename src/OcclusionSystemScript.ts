@@ -15,9 +15,11 @@ const _tempSphere = new pc.BoundingSphere();
 
 export class CullingObject {
 
+    private _occlusionTester: IOcclusionCullingTester | null;
     private _meshInstance: pcx.MeshInstance;
     private _visible: boolean;
 
+    public readonly entity: pc.Entity;
     public hzbTesterIndex: number | undefined;
     public oqTesterIndex: number | undefined;
     public outsideFrameStreak = 0;
@@ -28,16 +30,27 @@ export class CullingObject {
     public occlusionStatus: TOcclusionResult = OCCLUSION_UNKNOWN;
     public occlusionCullingIndex: number = -1;
 
+    public get occlusionTester() {
+        return this._occlusionTester;
+    }
+
+    public set occlusionTester(value) {
+        this.unlock();
+        this._occlusionTester = value;
+        this.lock();
+    }
+
     constructor(
-        public readonly entity: pcx.Entity,
-        public occlusionTester: IOcclusionCullingTester,
+        entity: pcx.Entity,
+        occlusionTester: IOcclusionCullingTester | null,
     ) {
+        this.entity = entity;
         this._meshInstance = entity.render!.meshInstances[0];
         this._meshInstance.isVisibleFunc = (camera: pcx.Camera) => {
             return this._meshInstance.visible && this._visible;
         }
         this._visible = this._meshInstance.visible;
-        this.lock();
+        this.occlusionTester = occlusionTester;
     }
 
     public handle(frustum: pcx.Frustum) {
@@ -116,9 +129,7 @@ export class CullingObject {
     }
 
     public unlock() {
-
-        if (this.occlusionCullingIndex !== -1) {
-
+        if (this.occlusionCullingIndex !== -1 && this.occlusionTester) {
             this.occlusionTester.unlock(this.occlusionCullingIndex);
             this.occlusionCullingIndex = -1;
         }
@@ -128,7 +139,9 @@ export class CullingObject {
         this.unlock();
         const aabb = this._getAABB();
         const matrix = this._getMatrix();
-        this.occlusionCullingIndex = this.occlusionTester.lock(aabb, matrix);
+        if (this.occlusionTester) {
+            this.occlusionCullingIndex = this.occlusionTester.lock(aabb, matrix);
+        }
     }
 
     public destroy() {
@@ -138,6 +151,7 @@ export class CullingObject {
 }
 
 export enum Tester {
+    None,
     HZB,
     Queries,
 }
@@ -212,7 +226,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
 
             const camera = cullCameraComponent.camera;
-            const tester = this._occlusionSystem.hzbTester;
+            const frustum = camera.frustum;
             const hzbDebugger = this._occlusionSystem.hzbDebugger;
 
             if (this.debugMipLevel) {
@@ -221,28 +235,36 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
             // For indirect draw we must always update buffer
             if (this.tester === Tester.HZB) {
+                const tester = this._occlusionSystem.hzbTester;
                 if (isGPUIndirectDrawOcclusionCullingTester(tester)) {
                     this._handleIndirectDraw(tester, camera);
                     return;
                 }
             }
 
+            // Hanlde occlusion queries or gpc2cpu hzb tester
             if (this.autoRender) {
 
-                const frustum = camera.frustum;
+                const sysDebugger = (
+                    this.tester === Tester.HZB ? this._occlusionSystem.hzbDebugger : 
+                    this.tester === Tester.Queries ? this._occlusionSystem.queriesDebugger :
+                    null
+                );
 
                 for (let i = 0; i < this._objects.length; i++) {
 
                     const object = this._objects[i];
-
                     object.handle(frustum);
 
-                    if (object.frustumStatus !== FRUSTUM_OUTSIDE && this.debug) {
+                    if (this.debug) {
 
-                        hzbDebugger?.debugItem(
-                            object.occlusionCullingIndex,
-                            true, true, this.debugMipLevel
-                        );
+                        if (object.frustumStatus !== FRUSTUM_OUTSIDE) {
+
+                            sysDebugger?.debugItem(
+                                object.occlusionCullingIndex,
+                                true, true, this.debugMipLevel
+                            );
+                        }
                     }
                 }
             }
@@ -252,6 +274,8 @@ export class OcclusionSystemScript extends pc.ScriptType {
     }
 
     private _handleIndirectDraw(tester: IGPUIndirectDrawOcclusionCullingTester, camera: pc.Camera) {
+
+        const hzbDebugger = this._occlusionSystem.hzbDebugger;
 
         for (let i = 0; i < this._objects.length; i++) {
 
@@ -269,7 +293,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
                 tester.enqueue(object.occlusionCullingIndex, prim, slot, 1, 0);
 
                 if (this.debug) {
-                    this._occlusionSystem.hzbDebugger?.debugItem(
+                    hzbDebugger?.debugItem(
                         object.occlusionCullingIndex,
                         true, true, this.debugMipLevel
                     );
@@ -350,10 +374,10 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
     private _getTester() {
         return (
-            this.tester === Tester.HZB ?
-            this._occlusionSystem.hzbTester :
-            this._occlusionSystem.queriesTester
-        )!;
+            this.tester === Tester.HZB ? this._occlusionSystem.hzbTester :
+            this.tester === Tester.Queries ? this._occlusionSystem.queriesTester :
+            null
+        );
     }
 
     private _updateTester() {
@@ -434,6 +458,7 @@ OcclusionSystemScript.attributes.add("cameraEntity", { type: "entity" });
 OcclusionSystemScript.attributes.add("radius", { type: 'number', default: 100, min: 0, max: 200, step: 1, precision: 0, });
 OcclusionSystemScript.attributes.add("capacity", { type: 'number', default: 100, min: 0, max: 10000, step: 1, precision: 0, });
 OcclusionSystemScript.attributes.add("tester", { type: "number", enum: [
+    { "None": Tester.None },
     { "HZB": Tester.HZB },
     { "Queries": Tester.Queries },
 ], default: Tester.HZB, });
