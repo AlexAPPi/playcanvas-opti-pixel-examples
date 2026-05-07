@@ -95,7 +95,7 @@ export class CullingObject {
                     this.occludedFrameStreak++;
 
                     if (this.occludedFrameStreak >= this.occludedStreakThreshold) {
-                        
+
                         finishVisible = false;
                     }
                 }
@@ -186,6 +186,46 @@ export class OcclusionSystemScript extends pc.ScriptType {
         this._occlusionSystem.queriesLayerName = this.layerName;
         this._occlusionSystem.camera = this.cameraEntity.camera?.camera || null;
 
+        if (this._occlusionSystem.hzb) {
+            this._occlusionSystem.hzb.enabled = this.tester === Tester.HZB;
+        }
+
+        if (this._occlusionSystem.hzbDebugger) {
+            this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
+        }
+
+        if ((this._occlusionSystem.hzbTester as any).maxSize) {
+            (this._occlusionSystem.hzbTester as any).maxSize = 128;
+        }
+
+        /*
+        if (this._occlusionSystem.hzbTester) {
+            const customGetFlagsVS = `
+                uint packCullStatusValue(uint a) {
+                    return a & 0x3u;
+                }
+                uint getFlags(
+                    uint index, vec3 boxCenterWorld, vec3 boxHalfExtents, vec2 boxExtra,
+                    float instanceDepth, float hzbDepth, int cullStatus,
+                    vec2 minCoord, vec2 maxCoord
+                ) {
+                    vec2 extent = maxCoord - minCoord;
+
+                    // Hide object if size less than %1 of screen
+                    if (max(extent.x, extent.y) < 0.03) {
+                        cullStatus = 1; // treat as occluded
+                    }
+
+                    uint cullStatusU = uint(cullStatus);
+                    return packCullStatusValue(cullStatusU);
+                }
+            `;
+            const customIncs = new Map();
+            customIncs.set("getFlagsVS", customGetFlagsVS);
+            this._occlusionSystem.hzbTester.setShaderProps(undefined, customIncs);
+        }
+        */
+
         this.on("disable", () => {
             this._clearPositions();
             this._clearObjects();
@@ -207,10 +247,14 @@ export class OcclusionSystemScript extends pc.ScriptType {
             if (this._occlusionSystem.hzb) {
                 this._occlusionSystem.hzb.enabled = this.tester === Tester.HZB;
             }
+            if (this._occlusionSystem.hzbDebugger) {
+                this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
+            }
             this._updateTester();
         });
 
         this.on("attr:capacity", () => {
+            this._unlockObjects();
             this._occlusionSystem.resize(this.capacity);
             this._updateWorld();
         });
@@ -384,6 +428,12 @@ export class OcclusionSystemScript extends pc.ScriptType {
         const tester = this._getTester();
         for (const object of this._objects) {
             object.occlusionTester = tester;
+        }
+    }
+
+    private _unlockObjects() {
+        for (let i = 0; i < this._objects.length; i++) {
+            this._objects[i].unlock();
         }
     }
 
