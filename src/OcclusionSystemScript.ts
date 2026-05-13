@@ -129,6 +129,10 @@ export class CullingObject {
     }
 
     public unlock() {
+
+        this.outsideFrameStreak = 0;
+        this.occludedFrameStreak = 0;
+
         if (this.occlusionCullingIndex !== -1 && this.occlusionTester) {
             this.occlusionTester.unlock(this.occlusionCullingIndex);
             this.occlusionCullingIndex = -1;
@@ -169,6 +173,9 @@ export class OcclusionSystemScript extends pc.ScriptType {
     public declare tester: Tester;
 
     private _occlusionSystem: OcclusionCullingSystem;
+    private _debugItemIdx: number = -1;
+    private _debugReact: boolean = true;
+    private _debugBox: boolean = true;
 
     private _shapesType = [
         'box' as const,
@@ -188,43 +195,17 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
         if (this._occlusionSystem.hzb) {
             this._occlusionSystem.hzb.enabled = this.tester === Tester.HZB;
+
+            if ((this._occlusionSystem.hzb as any).maxSize) {
+                (this._occlusionSystem.hzb as any).maxSize = 512;
+            }
         }
 
         if (this._occlusionSystem.hzbDebugger) {
             this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
         }
 
-        if ((this._occlusionSystem.hzbTester as any).maxSize) {
-            (this._occlusionSystem.hzbTester as any).maxSize = 128;
-        }
-
-        /*
-        if (this._occlusionSystem.hzbTester) {
-            const customGetFlagsVS = `
-                uint packCullStatusValue(uint a) {
-                    return a & 0x3u;
-                }
-                uint getFlags(
-                    uint index, vec3 boxCenterWorld, vec3 boxHalfExtents, vec2 boxExtra,
-                    float instanceDepth, float hzbDepth, int cullStatus,
-                    vec2 minCoord, vec2 maxCoord
-                ) {
-                    vec2 extent = maxCoord - minCoord;
-
-                    // Hide object if size less than %1 of screen
-                    if (max(extent.x, extent.y) < 0.03) {
-                        cullStatus = 1; // treat as occluded
-                    }
-
-                    uint cullStatusU = uint(cullStatus);
-                    return packCullStatusValue(cullStatusU);
-                }
-            `;
-            const customIncs = new Map();
-            customIncs.set("getFlagsVS", customGetFlagsVS);
-            this._occlusionSystem.hzbTester.setShaderProps(undefined, customIncs);
-        }
-        */
+        console.log(this._occlusionSystem);
 
         this.on("disable", () => {
             this._clearPositions();
@@ -300,13 +281,13 @@ export class OcclusionSystemScript extends pc.ScriptType {
                     const object = this._objects[i];
                     object.handle(frustum);
 
-                    if (this.debug) {
+                    if (this.debug && this._debugItemIdx === i) {
 
                         if (object.frustumStatus !== FRUSTUM_OUTSIDE) {
 
                             sysDebugger?.debugItem(
                                 object.occlusionCullingIndex,
-                                true, true, this.debugMipLevel
+                                this._debugBox, this._debugReact, this.debugMipLevel
                             );
                         }
                     }
@@ -336,10 +317,10 @@ export class OcclusionSystemScript extends pc.ScriptType {
                 meshInstance.setIndirect(null, slot, 1);
                 tester.enqueue(object.occlusionCullingIndex, prim, slot, 1, 0);
 
-                if (this.debug) {
+                if (this.debug && this._debugItemIdx === i) {
                     hzbDebugger?.debugItem(
                         object.occlusionCullingIndex,
-                        true, true, this.debugMipLevel
+                        this._debugBox, this._debugReact, this.debugMipLevel
                     );
                 }
             }
@@ -380,7 +361,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
         this._clearPositions();
         this._fillRandPositions();
-        
+
         for (let i = 0; i < this._objects.length; i++) {
 
             this._updateCullPosition(
@@ -475,13 +456,64 @@ export class OcclusionSystemScript extends pc.ScriptType {
             this._objects[i] = new CullingObject(entity, tester);
         }
     }
+
+    public update(dt: number) {
+
+        if (this.app.keyboard?.wasPressed(pc.KEY_B)) {
+            this._debugBox = !this._debugBox;
+        }
+
+        if (this.app.keyboard?.wasPressed(pc.KEY_R)) {
+            this._debugReact = !this._debugReact;
+        }
+
+        if (this.app.keyboard?.wasPressed(pc.KEY_C)) {
+
+            if (this._debugItemIdx === -1) {
+                this._debugItemIdx = 0;
+            } else {
+                this._debugItemIdx = -1;
+            }
+        }
+
+        if (this._debugItemIdx !== -1) {
+
+            let updated = false;
+
+            if (this.app.keyboard?.wasPressed(pc.KEY_ADD)) {
+                this._debugItemIdx++;
+                updated = true;
+            }
+
+            if (this.app.keyboard?.wasPressed(pc.KEY_SUBTRACT)) {
+                this._debugItemIdx--;
+                updated = true;
+            }
+
+            if (updated) {
+                this._debugItemIdx = wrapValue(this._debugItemIdx, 0, this._objects.length);
+            }
+        }
+    }
+}
+
+function wrapValue(value: number, min: number, max: number): number {
+    const range = max - min;
+    if (range <= 0) {
+        return min;
+    }
+    let result = (value - min) % range;
+    if (result < 0) {
+        result += range;
+    }
+    return result + min;
 }
 
 function randomPointInSphere(center: pcx.Vec3, radius: number) {
 
     let point;
     let distance;
-    
+
     // Rejection sampling: генерируем точку в кубе и проверяем расстояние до центра
     do {
         const x = (Math.random() * 2 - 1) * radius;
