@@ -244,7 +244,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             this._randAndUpdatePositions();
         });
 
-        this.app.scene.on("precull", (cullCameraComponent: pc.CameraComponent) => {
+        this.app.scene.on(pc.EVENT_PRECULL, (cullCameraComponent: pc.CameraComponent) => {
 
             if (this.cameraEntity.camera !== cullCameraComponent) {
                 return;
