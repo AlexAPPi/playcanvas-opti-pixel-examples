@@ -104,7 +104,7 @@ export class InstancedMeshScript extends pc.ScriptType {
         }
 
         // Reverse meshes for lods
-        const lods = this._meshInstancer.LODs.filter(x => !!x.render?.meshes).reverse();
+        const lods = this._meshInstancer.LODs.filter(x => !!x.render?.meshes).sort((a, b) => b.distance - a.distance);
 
         this.entity.addComponent("render", {
             castShadows: false,
@@ -114,15 +114,15 @@ export class InstancedMeshScript extends pc.ScriptType {
         /*
         let index = 0;
         for (const child of children) {
-            this._meshInstanced.setMatrixAt(index, child.getWorldTransform());
+            this._meshInstancer.setMatrixAt(index, child.getWorldTransform());
             index++;
         }
-        */
-
+        //*/
+        //*
         for (let index = 0; index < capacity; index++) {
             this._meshInstancer.setMatrixAt(index, generateRandomTransform());
         }
-
+        //*/
         if (numLevels > 0) {
             //this._meshInstancer.computeBVH();
             this.app.scene.on(pc.EVENT_PRECULL, (cullCameraComponent: pc.CameraComponent) => {
