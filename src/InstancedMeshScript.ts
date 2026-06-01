@@ -78,7 +78,8 @@ export class InstancedMeshScript extends pc.ScriptType {
     public declare LODEntity: pc.Entity[];
     public declare LODLevel: ILODLevel[];
 
-    protected _meshInstancer: HierarchicalInstancer | undefined;
+    private _meshInstancer: HierarchicalInstancer | undefined;
+    private _dt: number = 0;
 
     public initialize(): void {
 
@@ -123,13 +124,13 @@ export class InstancedMeshScript extends pc.ScriptType {
         }
 
         if (numLevels > 0) {
-            this._meshInstancer.computeBVH();
+            //this._meshInstancer.computeBVH();
             this.app.scene.on(pc.EVENT_PRECULL, (cullCameraComponent: pc.CameraComponent) => {
                 if (this.autoRender) {
                     if (this.cameraEntity.camera === cullCameraComponent) {
                         const position = this.cameraEntity.getPosition();
                         const forward = this.cameraEntity.forward;
-                        this._meshInstancer?.update(cullCameraComponent.camera, position, forward);
+                        this._meshInstancer?.update(this._dt, cullCameraComponent.camera, position, forward);
                     }
                 }
             });
@@ -149,6 +150,10 @@ export class InstancedMeshScript extends pc.ScriptType {
                 }
             }
         });
+    }
+
+    public update(dt: number) {
+        this._dt = dt;
     }
 }
 
