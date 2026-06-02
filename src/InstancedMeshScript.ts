@@ -22,9 +22,9 @@ export interface ILODLevel {
 }
 
 const posRanges = {
-    minX: -200, maxX: 200,
-    minY: -200, maxY: 200,
-    minZ: -200, maxZ: 200
+    minX: -400, maxX: 400,
+    minY: 0, maxY: 0,
+    minZ: -400, maxZ: 400
 }
 
 const scaleRanges = {
@@ -84,7 +84,7 @@ export class InstancedMeshScript extends pc.ScriptType {
     public initialize(): void {
 
         const children = this.entity.children;
-        const capacity = children.length; // 20000
+        const capacity = 20000;//children.length; // 100000
         const numLevels = this.LODLevel.length;
 
         this._meshInstancer = new HierarchicalInstancer(this.app.graphicsDevice, { capacity });
@@ -104,6 +104,8 @@ export class InstancedMeshScript extends pc.ScriptType {
                     const mis = lodEntityRender.meshInstances;
                     for (const mi of mis) {
                         const nmi = new pc.MeshInstance(mi.mesh, mi.material, mi.node);
+                        nmi.castShadow = true;
+                        nmi.receiveShadow = true;
                         meshInstances.push(nmi);
                     }
                 }
@@ -113,21 +115,21 @@ export class InstancedMeshScript extends pc.ScriptType {
         }
 
         // Reverse meshes for lods
-        const lods = this._meshInstancer.LODs.filter(x => !!x.render?.meshes).sort((a, b) => b.distance - a.distance);
+        const lods = this._meshInstancer.LODs.filter(x => !!x.render?.meshes).sort((a, b) => b.distance - a.distance).reverse();
 
         this.entity.addComponent("render", {
-            castShadows: false,
+            castShadows: true,
             meshInstances: lods.map(x => x.render!.meshes).flat()
         });
 
-        //*
+        /*
         let index = 0;
         for (const child of children) {
             this._meshInstancer.setMatrixAt(index, child.getWorldTransform());
             index++;
         }
         //*/
-        /*
+        //*
         for (let index = 0; index < capacity; index++) {
             this._meshInstancer.setMatrixAt(index, generateRandomTransform());
         }
