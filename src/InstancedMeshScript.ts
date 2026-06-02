@@ -84,23 +84,32 @@ export class InstancedMeshScript extends pc.ScriptType {
     public initialize(): void {
 
         const children = this.entity.children;
-        const capacity = 20000;//children.length;
+        const capacity = children.length; // 20000
         const numLevels = this.LODLevel.length;
 
         this._meshInstancer = new HierarchicalInstancer(this.app.graphicsDevice, { capacity });
 
         for (let level = 0; level < numLevels; level++) {
-            const lodEntity = this.LODEntity[level];
+
             const lodLevel = this.LODLevel[level];
-            const lodRender = lodEntity?.render;
-            let mesh = null;
-            let material = null;
-            if (lodRender) {
-                const meshInstance = lodRender.meshInstances[0];
-                mesh = meshInstance.mesh;
-                material = meshInstance.material as unknown as pc.StandardMaterial;
+            const lodEntity = this.LODEntity[level];
+
+            let meshInstances: pc.MeshInstance[] = [];
+
+            if (lodEntity) {
+
+                const lodEntityRenders = lodEntity.findComponents("render") as unknown as pc.RenderComponent[];
+
+                for (const lodEntityRender of lodEntityRenders) {
+                    const mis = lodEntityRender.meshInstances;
+                    for (const mi of mis) {
+                        const nmi = new pc.MeshInstance(mi.mesh, mi.material, mi.node);
+                        meshInstances.push(nmi);
+                    }
+                }
             }
-            this._meshInstancer.addLOD(mesh, material, lodLevel.distance, lodLevel.hysteresis);
+
+            this._meshInstancer.addLOD(meshInstances, lodEntity, lodLevel.distance, lodLevel.hysteresis);
         }
 
         // Reverse meshes for lods
@@ -108,17 +117,17 @@ export class InstancedMeshScript extends pc.ScriptType {
 
         this.entity.addComponent("render", {
             castShadows: false,
-            meshInstances: lods.map(x => x.render?.meshes[0])
+            meshInstances: lods.map(x => x.render!.meshes).flat()
         });
 
-        /*
+        //*
         let index = 0;
         for (const child of children) {
             this._meshInstancer.setMatrixAt(index, child.getWorldTransform());
             index++;
         }
         //*/
-        //*
+        /*
         for (let index = 0; index < capacity; index++) {
             this._meshInstancer.setMatrixAt(index, generateRandomTransform());
         }
