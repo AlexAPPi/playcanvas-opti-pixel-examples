@@ -5,7 +5,8 @@ import {
     IOcclusionCullingTester,
     isGPU2CPUReadbackOcclusionCullingTester,
     isGPUIndirectDrawOcclusionCullingTester,
-    IGPUIndirectDrawOcclusionCullingTester
+    IGPUIndirectDrawOcclusionCullingTester,
+    AABBStore
 } from "playcanvas-opti-pixel";
 
 type TFrustumResult = typeof FRUSTUM_UNKNOWN | typeof FRUSTUM_CONTAINED | typeof FRUSTUM_INTERSECTS | typeof FRUSTUM_OUTSIDE;
@@ -16,7 +17,7 @@ const _tempSphere = new pc.BoundingSphere();
 export class CullingObject {
 
     private _occlusionTester: IOcclusionCullingTester | null;
-    private _meshInstance: pcx.MeshInstance;
+    private _meshInstance: pc.MeshInstance;
     private _visible: boolean;
 
     public readonly entity: pc.Entity;
@@ -41,19 +42,19 @@ export class CullingObject {
     }
 
     constructor(
-        entity: pcx.Entity,
+        entity: pc.Entity,
         occlusionTester: IOcclusionCullingTester | null,
     ) {
         this.entity = entity;
         this._meshInstance = entity.render!.meshInstances[0];
-        this._meshInstance.isVisibleFunc = (camera: pcx.Camera) => {
+        this._meshInstance.isVisibleFunc = (camera: pc.Camera) => {
             return this._meshInstance.visible && this._visible;
         }
         this._visible = this._meshInstance.visible;
         this.occlusionTester = occlusionTester;
     }
 
-    public handle(frustum: pcx.Frustum) {
+    public handle(frustum: pc.Frustum) {
 
         if (!this._meshInstance.visible) {
             return;
@@ -94,7 +95,7 @@ export class CullingObject {
 
                     this.occludedFrameStreak++;
 
-                    if (this.occludedFrameStreak >= this.occludedStreakThreshold) {
+                    if (this.occludedFrameStreak > this.occludedStreakThreshold) {
 
                         finishVisible = false;
                     }
@@ -166,12 +167,13 @@ export class OcclusionSystemScript extends pc.ScriptType {
     public declare debug: boolean;
     public declare debugMipLevel: boolean;
     public declare mipLevel: number;
-    public declare cameraEntity: pcx.Entity;
+    public declare cameraEntity: pc.Entity;
     public declare layerName: string;
     public declare radius: number;
     public declare capacity: number;
     public declare tester: Tester;
 
+    private _aabbStore: AABBStore;
     private _occlusionSystem: OcclusionCullingSystem;
     private _debugItemIdx: number = -1;
     private _debugReact: boolean = true;
@@ -183,12 +185,13 @@ export class OcclusionSystemScript extends pc.ScriptType {
         'cylinder' as const
     ];
 
-    private _positions: pcx.Vec3[] = [];
+    private _positions: pc.Vec3[] = [];
     private _objects: CullingObject[] = [];
 
     public postInitialize(): void {
 
-        this._occlusionSystem = new OcclusionCullingSystem(this.app, this.capacity);
+        this._aabbStore = new AABBStore(this.app.graphicsDevice, this.capacity);
+        this._occlusionSystem = new OcclusionCullingSystem(this.app, this._aabbStore);
         this._occlusionSystem.active = this.autoRender;
         this._occlusionSystem.queriesLayerName = this.layerName;
         this._occlusionSystem.camera = this.cameraEntity.camera?.camera || null;
@@ -236,8 +239,10 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
         this.on("attr:capacity", () => {
             this._unlockObjects();
-            this._occlusionSystem.resize(this.capacity);
+            this._aabbStore.resize(this.capacity);
+            this._occlusionSystem.resize();
             this._updateWorld();
+            this._updateTester();
         });
 
         this.on("attr:radius", () => {
@@ -352,7 +357,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
         this._objects.length = 0;
     }
 
-    private _updateCullPosition(object: CullingObject, position: pcx.Vec3) {
+    private _updateCullPosition(object: CullingObject, position: pc.Vec3) {
         object.entity.setPosition(position);
         object.lock();
     }
@@ -509,7 +514,7 @@ function wrapValue(value: number, min: number, max: number): number {
     return result + min;
 }
 
-function randomPointInSphere(center: pcx.Vec3, radius: number) {
+function randomPointInSphere(center: pc.Vec3, radius: number) {
 
     let point;
     let distance;
