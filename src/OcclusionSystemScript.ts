@@ -163,7 +163,7 @@ export enum Tester {
 
 export class OcclusionSystemScript extends pc.ScriptType {
 
-    public declare autoRender: boolean;
+    public declare autoUpdate: boolean;
     public declare debug: boolean;
     public declare debugMipLevel: boolean;
     public declare mipLevel: number;
@@ -192,7 +192,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
 
         this._aabbStore = new AABBStore(this.app.graphicsDevice, this.capacity);
         this._occlusionSystem = new OcclusionCullingSystem(this.app, this._aabbStore);
-        this._occlusionSystem.active = this.autoRender;
+        this._occlusionSystem.autoUpdate = this.autoUpdate;
         this._occlusionSystem.queriesLayerName = this.layerName;
         this._occlusionSystem.camera = this.cameraEntity.camera?.camera || null;
 
@@ -204,9 +204,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
         }
 
-        if (this._occlusionSystem.hzbDebugger) {
-            this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
-        }
+        this._occlusionSystem.drawHZB = this.tester === Tester.HZB;
 
         console.log(this._occlusionSystem);
 
@@ -215,8 +213,8 @@ export class OcclusionSystemScript extends pc.ScriptType {
             this._clearObjects();
         });
 
-        this.on("attr:autoRender", () => {
-            this._occlusionSystem.active = this.autoRender;
+        this.on("attr:autoUpdate", () => {
+            this._occlusionSystem.autoUpdate = this.autoUpdate;
         });
 
         this.on("attr:cameraEntity", () => {
@@ -228,11 +226,9 @@ export class OcclusionSystemScript extends pc.ScriptType {
         });
 
         this.on("attr:tester", () => {
+            this._occlusionSystem.drawHZB = this.tester === Tester.HZB;
             if (this._occlusionSystem.hzb) {
                 this._occlusionSystem.hzb.enabled = this.tester === Tester.HZB;
-            }
-            if (this._occlusionSystem.hzbDebugger) {
-                this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
             }
             this._updateTester();
         });
@@ -273,7 +269,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
 
             // Hanlde occlusion queries or gpc2cpu hzb tester
-            if (this.autoRender) {
+            if (this.autoUpdate) {
 
                 const sysDebugger = (
                     this.tester === Tester.HZB ? this._occlusionSystem.hzbDebugger : 
@@ -320,7 +316,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
                 const prim = meshInstance.mesh?.primitive[meshInstance.renderStyle];
 
                 meshInstance.setIndirect(null, slot, 1);
-                tester.enqueue(object.occlusionCullingIndex, prim, slot, 1, 0);
+                tester.enqueue(object.occlusionCullingIndex, slot, prim, 1, 0);
 
                 if (this.debug && this._debugItemIdx === i) {
                     hzbDebugger?.debugItem(
@@ -331,7 +327,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
         }
 
-        tester.execute(camera, this.autoRender);
+        tester.execute(camera, this.autoUpdate);
     }
 
     private _destroyCullObject(object: CullingObject) {
@@ -536,7 +532,7 @@ export const occlusionSystemScriptName = "OptiPixel:OcclusionSystemScript";
 
 pc.registerScript(OcclusionSystemScript, occlusionSystemScriptName);
 
-OcclusionSystemScript.attributes.add("autoRender", { type: "boolean", default: true, });
+OcclusionSystemScript.attributes.add("autoUpdate", { type: "boolean", default: true, });
 OcclusionSystemScript.attributes.add("debug", { type: "boolean", default: false, });
 OcclusionSystemScript.attributes.add("debugMipLevel", { type: "boolean", default: false, });
 OcclusionSystemScript.attributes.add("mipLevel", { type: 'number', default: 0, min: 0, max: 20, step: 1, precision: 0, });
