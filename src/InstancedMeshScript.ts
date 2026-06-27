@@ -22,9 +22,9 @@ export interface ILODLevel {
 }
 
 const posRanges = {
-    minX: -400, maxX: 400,
+    minX: -500, maxX: 500,
     minY: 0, maxY: 0,
-    minZ: -400, maxZ: 400
+    minZ: -500, maxZ: 500
 }
 
 const scaleRanges = {
@@ -83,8 +83,8 @@ export class InstancedMeshScript extends pc.ScriptType {
 
     public initialize(): void {
 
-        const children = this.entity.children;
-        const capacity = 20000;//children.length; // 100000
+        const children  = this.entity.children;
+        const capacity  = 30000;//children.length; // 100000
         const numLevels = this.LODLevel.length;
 
         this._meshInstancer = new HierarchicalInstancer(this.app.graphicsDevice, { capacity });
@@ -104,8 +104,9 @@ export class InstancedMeshScript extends pc.ScriptType {
                     const mis = lodEntityRender.meshInstances;
                     for (const mi of mis) {
                         const nmi = new pc.MeshInstance(mi.mesh, mi.material, mi.node);
-                        nmi.castShadow = true;
-                        nmi.receiveShadow = true;
+                        nmi.castShadow = mi.castShadow;
+                        nmi.receiveShadow = mi.receiveShadow;
+                        nmi.shadowCascadeMask = mi.shadowCascadeMask;
                         meshInstances.push(nmi);
                     }
                 }
@@ -126,16 +127,18 @@ export class InstancedMeshScript extends pc.ScriptType {
         let index = 0;
         for (const child of children) {
             this._meshInstancer.setMatrixAt(index, child.getWorldTransform());
+            this._meshInstancer.setActiveAndVisibilityAt(index, true);
             index++;
         }
         //*/
         //*
         for (let index = 0; index < capacity; index++) {
             this._meshInstancer.setMatrixAt(index, generateRandomTransform());
+            this._meshInstancer.setActiveAndVisibilityAt(index, true);
         }
         //*/
         if (numLevels > 0) {
-            //this._meshInstancer.computeBVH();
+            this._meshInstancer.computeBVH();
             this.app.scene.on(pc.EVENT_PRECULL, (cullCameraComponent: pc.CameraComponent) => {
                 if (this.autoRender) {
                     if (this.cameraEntity.camera === cullCameraComponent) {
