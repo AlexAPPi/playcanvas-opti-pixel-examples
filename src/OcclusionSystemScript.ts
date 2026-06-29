@@ -5,7 +5,8 @@ import {
     IOcclusionCullingTester,
     isGPU2CPUReadbackOcclusionCullingTester,
     isGPUIndirectDrawOcclusionCullingTester,
-    IGPUIndirectDrawOcclusionCullingTester
+    IGPUIndirectDrawOcclusionCullingTester,
+    AABBStore
 } from "playcanvas-opti-pixel";
 
 type TFrustumResult = typeof FRUSTUM_UNKNOWN | typeof FRUSTUM_CONTAINED | typeof FRUSTUM_INTERSECTS | typeof FRUSTUM_OUTSIDE;
@@ -16,7 +17,7 @@ const _tempSphere = new pc.BoundingSphere();
 export class CullingObject {
 
     private _occlusionTester: IOcclusionCullingTester | null;
-    private _meshInstance: pcx.MeshInstance;
+    private _meshInstance: pc.MeshInstance;
     private _visible: boolean;
 
     public readonly entity: pc.Entity;
@@ -41,19 +42,19 @@ export class CullingObject {
     }
 
     constructor(
-        entity: pcx.Entity,
+        entity: pc.Entity,
         occlusionTester: IOcclusionCullingTester | null,
     ) {
         this.entity = entity;
         this._meshInstance = entity.render!.meshInstances[0];
-        this._meshInstance.isVisibleFunc = (camera: pcx.Camera) => {
+        this._meshInstance.isVisibleFunc = (camera: pc.Camera) => {
             return this._meshInstance.visible && this._visible;
         }
         this._visible = this._meshInstance.visible;
         this.occlusionTester = occlusionTester;
     }
 
-    public handle(frustum: pcx.Frustum) {
+    public handle(frustum: pc.Frustum) {
 
         if (!this._meshInstance.visible) {
             return;
@@ -94,7 +95,7 @@ export class CullingObject {
 
                     this.occludedFrameStreak++;
 
-                    if (this.occludedFrameStreak >= this.occludedStreakThreshold) {
+                    if (this.occludedFrameStreak > this.occludedStreakThreshold) {
 
                         finishVisible = false;
                     }
@@ -162,16 +163,17 @@ export enum Tester {
 
 export class OcclusionSystemScript extends pc.ScriptType {
 
-    public declare autoRender: boolean;
+    public declare autoUpdate: boolean;
     public declare debug: boolean;
     public declare debugMipLevel: boolean;
     public declare mipLevel: number;
-    public declare cameraEntity: pcx.Entity;
+    public declare cameraEntity: pc.Entity;
     public declare layerName: string;
     public declare radius: number;
     public declare capacity: number;
     public declare tester: Tester;
 
+    private _aabbStore: AABBStore;
     private _occlusionSystem: OcclusionCullingSystem;
     private _debugItemIdx: number = -1;
     private _debugReact: boolean = true;
@@ -183,13 +185,14 @@ export class OcclusionSystemScript extends pc.ScriptType {
         'cylinder' as const
     ];
 
-    private _positions: pcx.Vec3[] = [];
+    private _positions: pc.Vec3[] = [];
     private _objects: CullingObject[] = [];
 
     public postInitialize(): void {
 
-        this._occlusionSystem = new OcclusionCullingSystem(this.app, this.capacity);
-        this._occlusionSystem.active = this.autoRender;
+        this._aabbStore = new AABBStore(this.app.graphicsDevice, this.capacity);
+        this._occlusionSystem = new OcclusionCullingSystem(this.app, this._aabbStore);
+        this._occlusionSystem.autoUpdate = this.autoUpdate;
         this._occlusionSystem.queriesLayerName = this.layerName;
         this._occlusionSystem.camera = this.cameraEntity.camera?.camera || null;
 
@@ -201,9 +204,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
         }
 
-        if (this._occlusionSystem.hzbDebugger) {
-            this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
-        }
+        this._occlusionSystem.drawHZB = this.tester === Tester.HZB;
 
         console.log(this._occlusionSystem);
 
@@ -212,8 +213,8 @@ export class OcclusionSystemScript extends pc.ScriptType {
             this._clearObjects();
         });
 
-        this.on("attr:autoRender", () => {
-            this._occlusionSystem.active = this.autoRender;
+        this.on("attr:autoUpdate", () => {
+            this._occlusionSystem.autoUpdate = this.autoUpdate;
         });
 
         this.on("attr:cameraEntity", () => {
@@ -225,26 +226,26 @@ export class OcclusionSystemScript extends pc.ScriptType {
         });
 
         this.on("attr:tester", () => {
+            this._occlusionSystem.drawHZB = this.tester === Tester.HZB;
             if (this._occlusionSystem.hzb) {
                 this._occlusionSystem.hzb.enabled = this.tester === Tester.HZB;
-            }
-            if (this._occlusionSystem.hzbDebugger) {
-                this._occlusionSystem.hzbDebugger.enabled = this.tester === Tester.HZB;
             }
             this._updateTester();
         });
 
         this.on("attr:capacity", () => {
             this._unlockObjects();
-            this._occlusionSystem.resize(this.capacity);
+            this._aabbStore.resize(this.capacity);
+            this._occlusionSystem.resize();
             this._updateWorld();
+            this._updateTester();
         });
 
         this.on("attr:radius", () => {
             this._randAndUpdatePositions();
         });
 
-        this.app.scene.on("precull", (cullCameraComponent: pc.CameraComponent) => {
+        this.app.scene.on(pc.EVENT_PRECULL, (cullCameraComponent: pc.CameraComponent) => {
 
             if (this.cameraEntity.camera !== cullCameraComponent) {
                 return;
@@ -268,7 +269,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
 
             // Hanlde occlusion queries or gpc2cpu hzb tester
-            if (this.autoRender) {
+            if (this.autoUpdate) {
 
                 const sysDebugger = (
                     this.tester === Tester.HZB ? this._occlusionSystem.hzbDebugger : 
@@ -315,7 +316,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
                 const prim = meshInstance.mesh?.primitive[meshInstance.renderStyle];
 
                 meshInstance.setIndirect(null, slot, 1);
-                tester.enqueue(object.occlusionCullingIndex, prim, slot, 1, 0);
+                tester.enqueue(object.occlusionCullingIndex, slot, prim, 1, 0);
 
                 if (this.debug && this._debugItemIdx === i) {
                     hzbDebugger?.debugItem(
@@ -326,7 +327,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
             }
         }
 
-        tester.execute(camera, this.autoRender);
+        tester.execute(camera, this.autoUpdate);
     }
 
     private _destroyCullObject(object: CullingObject) {
@@ -352,7 +353,7 @@ export class OcclusionSystemScript extends pc.ScriptType {
         this._objects.length = 0;
     }
 
-    private _updateCullPosition(object: CullingObject, position: pcx.Vec3) {
+    private _updateCullPosition(object: CullingObject, position: pc.Vec3) {
         object.entity.setPosition(position);
         object.lock();
     }
@@ -509,7 +510,7 @@ function wrapValue(value: number, min: number, max: number): number {
     return result + min;
 }
 
-function randomPointInSphere(center: pcx.Vec3, radius: number) {
+function randomPointInSphere(center: pc.Vec3, radius: number) {
 
     let point;
     let distance;
@@ -531,7 +532,7 @@ export const occlusionSystemScriptName = "OptiPixel:OcclusionSystemScript";
 
 pc.registerScript(OcclusionSystemScript, occlusionSystemScriptName);
 
-OcclusionSystemScript.attributes.add("autoRender", { type: "boolean", default: true, });
+OcclusionSystemScript.attributes.add("autoUpdate", { type: "boolean", default: true, });
 OcclusionSystemScript.attributes.add("debug", { type: "boolean", default: false, });
 OcclusionSystemScript.attributes.add("debugMipLevel", { type: "boolean", default: false, });
 OcclusionSystemScript.attributes.add("mipLevel", { type: 'number', default: 0, min: 0, max: 20, step: 1, precision: 0, });

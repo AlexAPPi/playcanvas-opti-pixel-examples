@@ -18,6 +18,6 @@
     "playcanvas-sync": "^2.0.4"
   },
   "dependencies": {
-    "playcanvas-opti-pixel": "^1.0.10"
+    "playcanvas-opti-pixel": "file:../playcanvas-opti-pixel"
   }
 }
