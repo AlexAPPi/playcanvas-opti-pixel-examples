@@ -1,5 +1,6 @@
 import {
-    HierarchicalInstancer
+    HierarchicalInstancer,
+    SimpleHierarchicalInstancer
 } from "playcanvas-opti-pixel";
 
 export const LODLevelSchema = [
@@ -138,13 +139,12 @@ export class InstancedMeshScript extends pc.ScriptType {
         }
         //*/
         if (numLevels > 0) {
-            this._meshInstancer.computeBVH();
+            //this._meshInstancer.computeBVH();
             this.app.scene.on(pc.EVENT_PRECULL, (cullCameraComponent: pc.CameraComponent) => {
                 if (this.autoRender) {
                     if (this.cameraEntity.camera === cullCameraComponent) {
                         const position = this.cameraEntity.getPosition();
-                        const forward = this.cameraEntity.forward;
-                        this._meshInstancer?.update(this._dt, cullCameraComponent.camera, position, forward);
+                        this._meshInstancer?.update(this._dt, cullCameraComponent.camera, position);
                     }
                 }
             });
