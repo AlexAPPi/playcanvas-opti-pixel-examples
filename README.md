@@ -8,7 +8,7 @@ HZB, Coverage, and Queries are supported on WebGL2, and indirect draw and Covera
 
 ## Running
 
-Install `playcanvas-opti-pixel` 1.3.1 locally in the sibling folder `playcanvas-opti-pixel`, next to this repository. The folder name has to be exact: `package.json` depends on it with `file:../playcanvas-opti-pixel`, and Vite loads `../playcanvas-opti-pixel/src`. The library source imports `playcanvas` from that folder’s own `node_modules`, so install the library there before installing this project. The Pages workflow checks out tag `v1.3.1`.
+Install the `playcanvas-opti-pixel` library locally in the sibling folder `playcanvas-opti-pixel`, next to this repository. The folder name has to be exact: `package.json` depends on it with `file:../playcanvas-opti-pixel`, and Vite loads `../playcanvas-opti-pixel/src`. The library source imports `playcanvas` from that folder’s own `node_modules`, so install the library there before installing this project.
 
 ```text
 playcanvas-opti-pixel/            ← library, install here first
