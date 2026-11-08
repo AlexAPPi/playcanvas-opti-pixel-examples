@@ -35,17 +35,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            playcanvas-opti-pixel/package-lock.json
-            playcanvas-opti-pixel-examples/package-lock.json
 
       - name: Install and build
         working-directory: playcanvas-opti-pixel-examples
         run: |
-          npm ci --prefix ../playcanvas-opti-pixel
-          npm ci
+          npm install --prefix ../playcanvas-opti-pixel
+          npm install
           npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
