@@ -3,19 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "build/examples.js",
   "scripts": {
-    "build:esbuild": "node ./build.mjs",
-    "watch:esbuild": "node ./watch.mjs",
-    "build": "npm run build:esbuild",
-    "watch": "npm run watch:esbuild"
+    "dev": "vite",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "author": "Alexandr Shamarin",
   "license": "ISC",
   "devDependencies": {
-    "esbuild": "^0.28.0",
-    "playcanvas": "^2.18.1",
-    "playcanvas-sync": "^2.0.4"
+    "playcanvas": "^2.22.2",
+    "vite": "^7.1.0"
   },
   "dependencies": {
     "playcanvas-opti-pixel": "file:../playcanvas-opti-pixel"
