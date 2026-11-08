@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AlexAPPi/playcanvas-opti-pixel
+          ref: v1.3.1
           path: playcanvas-opti-pixel
 
       - uses: actions/setup-node@v4

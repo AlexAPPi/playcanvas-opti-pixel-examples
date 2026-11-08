@@ -8,7 +8,7 @@ HZB, Coverage, and Queries are supported on WebGL2, and indirect draw and Covera
 
 ## Running
 
-Install the `playcanvas-opti-pixel` library locally in the sibling folder `playcanvas-opti-pixel`, next to this repository. The folder name has to be exact: `package.json` depends on it with `file:../playcanvas-opti-pixel`, and Vite loads `../playcanvas-opti-pixel/src`. The library source imports `playcanvas` from that folder’s own `node_modules`, so install the library there before installing this project.
+Install `playcanvas-opti-pixel` 1.3.1 locally in the sibling folder `playcanvas-opti-pixel`, next to this repository. The folder name has to be exact: `package.json` depends on it with `file:../playcanvas-opti-pixel`, and Vite loads `../playcanvas-opti-pixel/src`. The library source imports `playcanvas` from that folder’s own `node_modules`, so install the library there before installing this project. The Pages workflow checks out tag `v1.3.1`.
 
 ```text
 playcanvas-opti-pixel/            ← library, install here first
@@ -25,7 +25,7 @@ npm install
 npm run dev
 ```
 
-The terminal prints the page address, usually `http://127.0.0.1:5173/`. Build a static page with `npm run build` (output in `dist`). Preview the build with `npm run preview`.
+The terminal prints the page address, usually `http://127.0.0.1:5173/`. Build a static page with `npm run build` (output in `dist`). Preview an existing build with `npm run preview`. `npm run srv` rebuilds and hosts `dist` at `http://127.0.0.1:4173/`.
 
 The Device item reloads the page. Auto and WebGPU request WebGPU and fall back to WebGL2 if it fails to start. Explicit WebGL2 creates WebGL2 only. The choice is written to the query parameter `?device=webgpu` or `?device=webgl2`.
 
@@ -80,12 +80,12 @@ This block belongs to Coverage mode. The map cap is set in texels; the downloade
 | readbackSlots | 5 | How many GPU→CPU reads to keep in flight. Minimum 2. Changing it drops downloads that have not arrived yet. |
 | readbackPeriod | 1 | WebGL only. Pack the map every Nth visit while a slot is free. Gathering still runs every frame. On WebGPU the item is hidden: packing runs when a slot is free. |
 | cpuReadback | on | When off, capture does not pack the map and does not start a read. A read already in progress is still published. |
-| Auto update | on | When off, Queries stops polling visibility and keeps the last result. |
 
 ### Debug
 
 | Item | Meaning |
 | --- | --- |
+| Auto update | On by default. When off, the occlusion test stops updating and keeps the last visibility result. |
 | Show buffer | The HZB pyramid, or the two Coverage maps: the downloaded one and the current-frame reprojection. |
 | Object debug | Turns on inspection of a single object. Its index appears in the stats. |
 | Mip fullscreen | The selected HZB mip, or the Coverage map, across the whole frame. |

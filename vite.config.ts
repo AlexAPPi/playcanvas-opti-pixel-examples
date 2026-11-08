@@ -32,7 +32,13 @@ export default defineConfig({
         },
     },
     preview: {
+        // Same loopback bind as the dev server: Node prefers ::1, and connect()
+        // to ::1 fails with EACCES on this machine.
         host: '127.0.0.1',
+        port: 4173,
+        strictPort: true,
+        // Public tunnels (Pinggy and similar) send their own Host header.
+        allowedHosts: true,
     },
     build: {
         outDir: 'dist',
