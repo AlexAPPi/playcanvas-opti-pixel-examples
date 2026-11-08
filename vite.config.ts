@@ -6,6 +6,8 @@ const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const librarySrc = path.resolve(repoRoot, '../playcanvas-opti-pixel/src');
 
 export default defineConfig({
+    // Relative asset URLs so the build opens from a GitHub Pages project site.
+    base: './',
     resolve: {
         alias: {
             'playcanvas-opti-pixel': librarySrc,

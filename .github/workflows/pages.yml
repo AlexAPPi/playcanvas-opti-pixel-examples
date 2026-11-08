@@ -1,0 +1,54 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v4
+        with:
+          path: playcanvas-opti-pixel-examples
+
+      - name: Checkout library
+        uses: actions/checkout@v4
+        with:
+          repository: AlexAPPi/playcanvas-opti-pixel
+          path: playcanvas-opti-pixel
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install and build
+        working-directory: playcanvas-opti-pixel-examples
+        run: |
+          npm install --prefix ../playcanvas-opti-pixel
+          npm install
+          npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: playcanvas-opti-pixel-examples/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
