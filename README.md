@@ -42,7 +42,7 @@ Objects are split into two groups:
 - **Wall.** Up to 16 boxes in a row in front of the camera. These are the occluders: the other objects hide behind them.
 - **Scatter.** Cubes, spheres, and cylinders behind the wall, within the radius. Colors alternate.
 
-The defaults are 30 objects and a radius of 48. Count ranges from 1 to 2000: extra objects are removed, and new ones extend the wall and the scatter. Radius ranges from 8 to 120. The wall is laid out again, and the scatter is scaled around the center, so relative placement is kept.
+The defaults are 100 objects and a radius of 48. Count ranges from 1 to 2000: extra objects are removed, and new ones extend the wall and the scatter. Radius ranges from 8 to 120. The wall is laid out again, and the scatter is scaled around the center, so relative placement is kept.
 
 While the test is off, objects are culled only by the camera frustum.
 
@@ -50,7 +50,7 @@ While the test is off, objects are culled only by the camera frustum.
 
 ## Panel
 
-The panel is on the left. Item hints are in the `title` tooltip.
+The panel is on the right. Item hints are in the `title` tooltip. Frames per second are in MiniStats, at the bottom left.
 
 ### Mode
 
@@ -64,9 +64,9 @@ The panel is on the left. Item hints are in the `title` tooltip.
 
 Under the blocks, the panel states which backend is running: device, mode, pyramid, and depth source.
 
-### Object controls
+### Scene
 
-Count and Radius are described in the Scene section.
+Count and Radius are described in the Scene section above.
 
 ### CoverageBuffer
 
@@ -78,7 +78,7 @@ This block belongs to Coverage mode. The map cap is set in texels; the downloade
 | Buffer height | 128 | Height cap, 1–1024. |
 | minReadbackLag | 2 | How many `frameUpdate` calls to wait before copying a finished download to the CPU. 0 means as soon as it is ready. |
 | readbackSlots | 5 | How many GPU→CPU reads to keep in flight. Minimum 2. Changing it drops downloads that have not arrived yet. |
-| readbackPeriod | 1 | WebGL only. Pack the map every Nth visit while a slot is free. Gathering still runs every frame. On WebGPU the item is hidden: packing runs when a slot is free. |
+| readbackPeriod | 1 | Pack the map every Nth visit while a slot is free. Gathering still runs every frame. WebGL2 and WebGPU. |
 | cpuReadback | on | When off, capture does not pack the map and does not start a read. A read already in progress is still published. |
 
 ### Debug

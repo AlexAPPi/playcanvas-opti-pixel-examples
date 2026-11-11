@@ -12,25 +12,22 @@ interface PanelElements {
     depthEncoding: HTMLSelectElement;
     capacity: HTMLInputElement;
     radius: HTMLInputElement;
+    objectScale: HTMLInputElement;
     capacityValue: HTMLElement;
     radiusValue: HTMLElement;
+    objectScaleValue: HTMLElement;
     coverageWidthRow: HTMLElement;
     coverageHeightRow: HTMLElement;
-    coverageWidth: HTMLInputElement;
-    coverageHeight: HTMLInputElement;
-    coverageWidthValue: HTMLElement;
-    coverageHeightValue: HTMLElement;
+    coverageWidth: HTMLSelectElement;
+    coverageHeight: HTMLSelectElement;
     readbackLagRow: HTMLElement;
     readbackSlotsRow: HTMLElement;
     readbackPeriodRow: HTMLElement;
     cpuReadbackRow: HTMLElement;
-    readbackLag: HTMLInputElement;
-    readbackSlots: HTMLInputElement;
-    readbackPeriod: HTMLInputElement;
+    readbackLag: HTMLSelectElement;
+    readbackSlots: HTMLSelectElement;
+    readbackPeriod: HTMLSelectElement;
     cpuReadback: HTMLInputElement;
-    readbackLagValue: HTMLElement;
-    readbackSlotsValue: HTMLElement;
-    readbackPeriodValue: HTMLElement;
     autoUpdate: HTMLInputElement;
     drawHzb: HTMLInputElement;
     debug: HTMLInputElement;
@@ -43,7 +40,6 @@ interface PanelElements {
     mipOpacityValue: HTMLElement;
     stats: HTMLElement;
     hint: HTMLElement;
-    fps: HTMLElement;
 }
 
 export function bindControlPanel(app: AppBase, scene: OcclusionScene, device: GraphicsDevice): void {
@@ -55,7 +51,6 @@ class ControlPanel {
     private readonly _ui = readPanelElements();
     private readonly _deviceName: string;
     private readonly _coarseQuery = window.matchMedia('(pointer: coarse), (hover: none)');
-    private _shownFps = -1;
     private _unsubscribeLang: (() => void) | null = null;
 
     public constructor(
@@ -81,6 +76,7 @@ class ControlPanel {
         this._syncDepthControls();
         this._syncScalar('capacity');
         this._syncScalar('radius');
+        this._syncScalar('scale');
         this._syncCoverageCap();
         this._syncCoverageReadback();
     }
@@ -129,10 +125,17 @@ class ControlPanel {
         this._ui.depthEncoding.title = cameraFrame ? t('encodingCameraFrame') : t('encodingDepthGrab');
     };
 
-    private _syncScalar(kind: 'capacity' | 'radius'): void {
-        const value = String(kind === 'capacity' ? this._scene.capacity : this._scene.radius);
-        const input = kind === 'capacity' ? this._ui.capacity : this._ui.radius;
-        const label = kind === 'capacity' ? this._ui.capacityValue : this._ui.radiusValue;
+    private _syncScalar(kind: 'capacity' | 'radius' | 'scale'): void {
+        const raw = kind === 'capacity' ? this._scene.capacity :
+            kind === 'radius' ? this._scene.radius :
+                this._scene.objectScale;
+        const value = kind === 'scale' ? raw.toFixed(2) : String(raw);
+        const input = kind === 'capacity' ? this._ui.capacity :
+            kind === 'radius' ? this._ui.radius :
+                this._ui.objectScale;
+        const label = kind === 'capacity' ? this._ui.capacityValue :
+            kind === 'radius' ? this._ui.radiusValue :
+                this._ui.objectScaleValue;
         input.value = value;
         label.textContent = value;
     }
@@ -144,25 +147,14 @@ class ControlPanel {
         }
         this._ui.coverageWidth.value = String(cap.width);
         this._ui.coverageHeight.value = String(cap.height);
-        this._ui.coverageWidthValue.textContent = String(cap.width);
-        this._ui.coverageHeightValue.textContent = String(cap.height);
     }
 
     private _syncCoverageReadback(): void {
         const scene = this._scene;
         const ui = this._ui;
-        const lag = String(scene.coverageMinReadbackLag);
-        const slots = String(scene.coverageReadbackSlots);
-        ui.readbackLag.value = lag;
-        ui.readbackLagValue.textContent = lag;
-        ui.readbackSlots.value = slots;
-        ui.readbackSlotsValue.textContent = slots;
-        const period = scene.coverageReadbackPeriod;
-        if (period !== null) {
-            const text = String(period);
-            ui.readbackPeriod.value = text;
-            ui.readbackPeriodValue.textContent = text;
-        }
+        ui.readbackLag.value = String(scene.coverageMinReadbackLag);
+        ui.readbackSlots.value = String(scene.coverageReadbackSlots);
+        ui.readbackPeriod.value = String(scene.coverageReadbackPeriod);
         ui.cpuReadback.checked = scene.coverageCpuReadback;
     }
 
@@ -232,35 +224,28 @@ class ControlPanel {
             scene.setRadius(Number(ui.radius.value));
         });
 
-        const syncCoverageSizeLabel = (): void => {
-            ui.coverageWidthValue.textContent = ui.coverageWidth.value;
-            ui.coverageHeightValue.textContent = ui.coverageHeight.value;
-        };
+        ui.objectScale.addEventListener('input', () => {
+            ui.objectScaleValue.textContent = Number(ui.objectScale.value).toFixed(2);
+            scene.setObjectScale(Number(ui.objectScale.value));
+        });
+
         const applyCoverageSize = (): void => {
-            syncCoverageSizeLabel();
             scene.setCoverageBufferSize(Number(ui.coverageWidth.value), Number(ui.coverageHeight.value));
         };
-        ui.coverageWidth.addEventListener('input', syncCoverageSizeLabel);
-        ui.coverageHeight.addEventListener('input', syncCoverageSizeLabel);
         ui.coverageWidth.addEventListener('change', applyCoverageSize);
         ui.coverageHeight.addEventListener('change', applyCoverageSize);
 
-        ui.readbackLag.addEventListener('input', () => {
-            ui.readbackLagValue.textContent = ui.readbackLag.value;
-            scene.setCoverageMinReadbackLag(Number(ui.readbackLag.value));
-        });
-        ui.readbackSlots.addEventListener('input', () => {
-            ui.readbackSlotsValue.textContent = ui.readbackSlots.value;
-        });
         ui.readbackSlots.addEventListener('change', () => {
             scene.setCoverageReadbackSlots(Number(ui.readbackSlots.value));
-            const slots = String(scene.coverageReadbackSlots);
-            ui.readbackSlots.value = slots;
-            ui.readbackSlotsValue.textContent = slots;
+            ui.readbackSlots.value = String(scene.coverageReadbackSlots);
         });
-        ui.readbackPeriod.addEventListener('input', () => {
-            ui.readbackPeriodValue.textContent = ui.readbackPeriod.value;
+        ui.readbackLag.addEventListener('change', () => {
+            scene.setCoverageMinReadbackLag(Number(ui.readbackLag.value));
+            ui.readbackLag.value = String(scene.coverageMinReadbackLag);
+        });
+        ui.readbackPeriod.addEventListener('change', () => {
             scene.setCoverageReadbackPeriod(Number(ui.readbackPeriod.value));
+            ui.readbackPeriod.value = String(scene.coverageReadbackPeriod);
         });
         ui.cpuReadback.addEventListener('change', () => {
             scene.setCoverageCpuReadback(ui.cpuReadback.checked);
@@ -324,18 +309,17 @@ class ControlPanel {
         ui.mipLevel.disabled = coverage;
         ui.coverageMapRow.hidden = !coverage;
         ui.coverageMap.disabled = !coverage;
-        const periodAvailable = this._scene.coverageReadbackPeriod !== null;
         ui.coverageWidthRow.hidden = !coverage;
         ui.coverageHeightRow.hidden = !coverage;
         ui.coverageWidth.disabled = !coverage;
         ui.coverageHeight.disabled = !coverage;
         ui.readbackLagRow.hidden = !coverage;
         ui.readbackSlotsRow.hidden = !coverage;
-        ui.readbackPeriodRow.hidden = !coverage || !periodAvailable;
+        ui.readbackPeriodRow.hidden = !coverage;
         ui.cpuReadbackRow.hidden = !coverage;
         ui.readbackLag.disabled = !coverage;
         ui.readbackSlots.disabled = !coverage;
-        ui.readbackPeriod.disabled = !coverage || !periodAvailable;
+        ui.readbackPeriod.disabled = !coverage;
         ui.cpuReadback.disabled = !coverage;
         this._scene.setCoverageFullscreenDownloaded(coverage && downloaded);
         ui.debugMip.title = coverage ?
@@ -349,11 +333,6 @@ class ControlPanel {
             this._ui.debug.checked = debugOn;
         }
 
-        const fps = Math.round(this._app.stats.frame.fps);
-        if (fps > 0 && fps !== this._shownFps) {
-            this._shownFps = fps;
-            this._ui.fps.textContent = String(fps);
-        }
         this._ui.stats.textContent = statsLine(this._scene, this._deviceName);
     };
 
@@ -374,14 +353,14 @@ function readPanelElements(): PanelElements {
         depthEncoding: requireElement('#depth-encoding'),
         capacity: requireElement('#capacity'),
         radius: requireElement('#radius'),
+        objectScale: requireElement('#object-scale'),
         capacityValue: requireElement('#capacity-value'),
         radiusValue: requireElement('#radius-value'),
+        objectScaleValue: requireElement('#object-scale-value'),
         coverageWidthRow: requireElement('#coverage-width-row'),
         coverageHeightRow: requireElement('#coverage-height-row'),
         coverageWidth: requireElement('#coverage-width'),
         coverageHeight: requireElement('#coverage-height'),
-        coverageWidthValue: requireElement('#coverage-width-value'),
-        coverageHeightValue: requireElement('#coverage-height-value'),
         readbackLagRow: requireElement('#readback-lag-row'),
         readbackSlotsRow: requireElement('#readback-slots-row'),
         readbackPeriodRow: requireElement('#readback-period-row'),
@@ -390,9 +369,6 @@ function readPanelElements(): PanelElements {
         readbackSlots: requireElement('#readback-slots'),
         readbackPeriod: requireElement('#readback-period'),
         cpuReadback: requireElement('#cpu-readback'),
-        readbackLagValue: requireElement('#readback-lag-value'),
-        readbackSlotsValue: requireElement('#readback-slots-value'),
-        readbackPeriodValue: requireElement('#readback-period-value'),
         autoUpdate: requireElement('#auto-update'),
         drawHzb: requireElement('#draw-hzb'),
         debug: requireElement('#debug'),
@@ -405,7 +381,6 @@ function readPanelElements(): PanelElements {
         mipOpacityValue: requireElement('#mip-opacity-value'),
         stats: requireElement('#stats'),
         hint: requireElement('#hint'),
-        fps: requireElement('#fps-value'),
     };
 }
 

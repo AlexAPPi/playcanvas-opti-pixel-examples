@@ -502,9 +502,7 @@ export class TouchJoysticks {
         const height = window.innerHeight;
         let left = lookLeft + stickSize - button;
         let top = lookTop - STEP_GAP - stack;
-        const fps = document.querySelector('#fps');
-        const fpsBottom = fps instanceof HTMLElement ? fps.getBoundingClientRect().bottom : 0;
-        const minTop = Math.max(MIN_TOP, Math.ceil(fpsBottom) + STEP_GAP);
+        const minTop = MIN_TOP;
         top = Math.max(minTop, top);
 
         const blocked: Box[] = [

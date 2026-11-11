@@ -20,18 +20,21 @@ import {
 import { AABBStore, FRUSTUM_OUTSIDE, type IOcclusionCullingTester } from 'playcanvas-opti-pixel';
 import { CullingObject } from '../culling-object.ts';
 import {
+    CoverageBufferOptions,
     CoverageOcclusion,
     Webgl2HzbOcclusion,
     Webgl2QueriesOcclusion,
     WebgpuHzbOcclusion,
     createOcclusionBackends,
+    type CoverageDebugStats,
 } from './backends.ts';
 import { CameraDepth } from './camera-depth.ts';
 import {
-    layoutScatter,
+    ObjectPlacement,
     layoutWall,
     scaleScatterAboutCenter,
     scatterShape,
+    separateOverlaps,
     wallCount,
     type ShapeName,
 } from './layout.ts';
@@ -53,6 +56,7 @@ export interface OcclusionSceneOptions {
     capacity?: number;
     radius?: number;
     tester?: TesterMode;
+    coverage?: CoverageBufferOptions;
 }
 
 export class OcclusionScene {
@@ -76,6 +80,7 @@ export class OcclusionScene {
 
     private _capacity: number;
     private _radius: number;
+    private _objectScale = 1;
     private _tester: TesterMode;
     private _autoUpdate = true;
     private _drawHZB = true;
@@ -96,12 +101,12 @@ export class OcclusionScene {
         this._app = app;
         this._cameraEntity = cameraEntity;
         this._depth = new CameraDepth(app, cameraEntity);
-        this._capacity = options.capacity ?? 30;
+        this._capacity = options.capacity ?? 100;
         this._radius = options.radius ?? 48;
         this._tester = options.tester ?? TesterMode.Coverage;
 
         this._aabbStore = new AABBStore(app.graphicsDevice, this._capacity);
-        const backends = createOcclusionBackends(app, this._aabbStore, this._capacity);
+        const backends = createOcclusionBackends(app, this._aabbStore, this._capacity, options.coverage);
         this._webgl2Hzb = backends.webgl2Hzb;
         this._webgl2Queries = backends.webgl2Queries;
         this._webgpuHzb = backends.webgpuHzb;
@@ -133,6 +138,11 @@ export class OcclusionScene {
 
     public get radius(): number {
         return this._radius;
+    }
+
+    /** Multiplier for cubes, spheres, and cylinders. The wall is unchanged. */
+    public get objectScale(): number {
+        return this._objectScale;
     }
 
     public get tester(): TesterMode {
@@ -171,6 +181,17 @@ export class OcclusionScene {
     /** True after the first packed coverage map has been downloaded. */
     public get coverageReady(): boolean {
         return this._coverage?.ready ?? false;
+    }
+
+    /**
+     * Coverage GPU-read and worker timings while that test is selected.
+     * Other modes report nothing so a stale sample is not shown as live.
+     */
+    public get coverageDebugStats(): CoverageDebugStats | null {
+        if (this._tester !== TesterMode.Coverage) {
+            return null;
+        }
+        return this._coverage?.debugStats ?? null;
     }
 
     /**
@@ -232,18 +253,14 @@ export class OcclusionScene {
         }
     }
 
-    /** WebGL capture cadence. `null` on WebGPU, which packs whenever a slot is free. */
-    public get coverageReadbackPeriod(): number | null {
-        const buffer = this._coverage?.buffer;
-        if (!buffer || !('readbackPeriod' in buffer)) {
-            return null;
-        }
-        return buffer.readbackPeriod;
+    /** Pack every Nth attempt while a slot is free. Harvest still runs every frame. Default 1. */
+    public get coverageReadbackPeriod(): number {
+        return this._coverage?.buffer.readbackPeriod ?? 1;
     }
 
     public setCoverageReadbackPeriod(value: number): void {
         const buffer = this._coverage?.buffer;
-        if (buffer && 'readbackPeriod' in buffer) {
+        if (buffer) {
             buffer.readbackPeriod = value;
         }
     }
@@ -382,12 +399,25 @@ export class OcclusionScene {
             return;
         }
 
+        const previousWalls = wallCount(this._capacity);
         this._unlockObjects();
         this._capacity = next;
         this._resizeTesters(next);
         if (next < this._objects.length) {
             this._dropObjectsFrom(next);
-        } else {
+        }
+        if (wallCount(next) !== previousWalls && this._positions.length > 0) {
+            this._layoutWalls();
+            separateOverlaps(
+                this.root.getPosition(),
+                this._positions,
+                this._scales,
+                this._shapes,
+                wallCount(next),
+            );
+            this._writeTransforms();
+        }
+        if (next > this._objects.length) {
             const previous = this._objects.length;
             this._fillNewSlots(previous);
             this._spawnNewObjects(previous);
@@ -411,13 +441,36 @@ export class OcclusionScene {
                 layoutWall(i, walls, next, center, this._positions[i], this._scales[i]);
             } else {
                 scaleScatterAboutCenter(this._positions[i], this._scales[i], center, ratio);
+                this._positions[i].y = this._scales[i].y * 0.5;
             }
-            const entity = this._objects[i].entity;
-            entity.setPosition(this._positions[i]);
-            entity.setLocalScale(this._scales[i]);
+        }
+        separateOverlaps(center, this._positions, this._scales, this._shapes, walls);
+        this._writeTransforms();
+        for (const object of this._objects) {
+            object.lock();
+        }
+    }
+
+    public setObjectScale(value: number): void {
+        const next = Math.min(OBJECT_SCALE_MAX, Math.max(OBJECT_SCALE_MIN, value));
+        if (Math.abs(next - this._objectScale) < 1e-4) {
+            return;
         }
 
-        this._app.root.syncHierarchy();
+        const ratio = next / this._objectScale;
+        this._objectScale = next;
+        const walls = wallCount(this._capacity);
+        for (let i = walls; i < this._scales.length; i++) {
+            this._scales[i].mulScalar(ratio);
+            this._positions[i].y = this._scales[i].y * 0.5;
+        }
+        if (ratio > 1 && this._scales.length > walls) {
+            separateOverlaps(this.root.getPosition(), this._positions, this._scales, this._shapes, walls);
+        }
+        if (this._objects.length === 0) {
+            return;
+        }
+        this._writeTransforms();
         for (const object of this._objects) {
             object.lock();
         }
@@ -515,7 +568,13 @@ export class OcclusionScene {
     private _fillNewSlots(from: number): void {
         const walls = wallCount(this._capacity);
         const center = this.root.getPosition();
+        const placement = new ObjectPlacement(this._radius, center);
 
+        for (let i = 0; i < from; i++) {
+            placement.add(this._positions[i], this._scales[i], this._shapes[i], true);
+        }
+
+        const scatter: number[] = [];
         for (let i = from; i < this._capacity; i++) {
             const position = new Vec3();
             const scale = new Vec3();
@@ -524,11 +583,39 @@ export class OcclusionScene {
             if (i < walls) {
                 layoutWall(i, walls, this._radius, center, position, scale);
                 this._shapes[i] = 'box';
+                placement.add(position, scale, 'box', true);
                 continue;
             }
-            layoutScatter(this._radius, center, position, scale);
+            placement.prepareScatter(scale, this._objectScale);
+            position.y = scale.y * 0.5;
             this._shapes[i] = scatterShape(i);
+            scatter.push(i);
         }
+
+        scatter.sort((a, b) => this._scales[b].x - this._scales[a].x);
+        for (let i = 0; i < scatter.length; i++) {
+            const index = scatter[i];
+            placement.place(this._positions[index], this._scales[index], this._shapes[index]);
+        }
+        placement.relax(true);
+    }
+
+    private _layoutWalls(): void {
+        const walls = wallCount(this._capacity);
+        const center = this.root.getPosition();
+        const count = Math.min(walls, this._positions.length);
+        for (let i = 0; i < count; i++) {
+            layoutWall(i, walls, this._radius, center, this._positions[i], this._scales[i]);
+        }
+    }
+
+    private _writeTransforms(): void {
+        for (let i = 0; i < this._objects.length; i++) {
+            const entity = this._objects[i].entity;
+            entity.setPosition(this._positions[i]);
+            entity.setLocalScale(this._scales[i]);
+        }
+        this._app.root.syncHierarchy();
     }
 
     private _spawnNewObjects(from: number): void {
@@ -758,6 +845,9 @@ export class OcclusionScene {
         }
     };
 }
+
+const OBJECT_SCALE_MIN = 0.25;
+const OBJECT_SCALE_MAX = 2.5;
 
 function wrapIndex(index: number, length: number): number {
     if (length <= 0) {

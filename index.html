@@ -20,11 +20,49 @@
             touch-action: none;
         }
 
-        #panel {
+        #library {
             position: fixed;
+            z-index: 4;
             top: 8px;
             left: 8px;
-            width: min(220px, calc(100vw - 16px));
+            box-sizing: border-box;
+            /* Leave the right-hand panel (220px, or the MiniStats gutter on a narrow screen). */
+            max-width: calc(100vw - 24px - min(220px, 100vw - 208px));
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: rgba(16, 22, 30, 0.88);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+            color: #d6e6f5;
+            font-size: 12px;
+            font-weight: 650;
+            line-height: 1.25;
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #library:hover {
+            color: #fff;
+            text-decoration: underline;
+        }
+
+        #library:focus {
+            outline: none;
+        }
+
+        #library:focus-visible {
+            outline: 1px solid #6d8eae;
+            outline-offset: 2px;
+        }
+
+        #panel {
+            position: fixed;
+            z-index: 4;
+            top: 8px;
+            right: 8px;
+            /* 168px MiniStats column, plus the gaps on either side of it. */
+            width: min(220px, calc(100vw - 208px));
             max-height: calc(100vh - 16px);
             overflow: auto;
             padding: 8px 8px 6px;
@@ -167,30 +205,6 @@
             font-variant-numeric: tabular-nums;
         }
 
-        #fps {
-            position: fixed;
-            top: 12px;
-            right: 12px;
-            min-width: 7.5rem;
-            padding: 8px 14px;
-            border-radius: 10px;
-            background: rgba(16, 22, 30, 0.88);
-            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
-            font-size: 28px;
-            font-weight: 650;
-            line-height: 1;
-            font-variant-numeric: tabular-nums;
-            text-align: right;
-            pointer-events: none;
-        }
-
-        #fps span {
-            margin-left: 6px;
-            font-size: 13px;
-            font-weight: 550;
-            color: #b7c5d4;
-        }
-
         .joystick {
             position: fixed;
             z-index: 5;
@@ -297,8 +311,8 @@
     </style>
 </head>
 <body>
+    <a id="library" href="https://github.com/AlexAPPi/playcanvas-opti-pixel" target="_blank" rel="noopener noreferrer" data-i18n-title="libraryTitle" title="Библиотека playcanvas-opti-pixel">playcanvas-opti-pixel</a>
     <canvas id="application"></canvas>
-    <div id="fps"><b id="fps-value">—</b><span>fps</span></div>
     <aside id="panel">
         <div class="title-row">
             <h1>OptiPixel</h1>
@@ -352,40 +366,91 @@
             </div>
         </details>
         <details class="fold" open>
-            <summary><span data-i18n="sectionObjects">Управление объектами</span></summary>
+            <summary><span data-i18n="sectionObjects">Сцена</span></summary>
             <div class="fold-body">
                 <label class="stack">
-                    <span><span data-i18n="capacity">Количество</span> <b id="capacity-value">30</b></span>
-                    <input id="capacity" type="range" min="1" max="2000" step="1" value="30">
+                    <span><span data-i18n="capacity">Количество</span> <b id="capacity-value">100</b></span>
+                    <input id="capacity" type="range" min="1" max="2000" step="1" value="100">
                 </label>
                 <label class="stack">
                     <span><span data-i18n="radius">Радиус</span> <b id="radius-value">48</b></span>
                     <input id="radius" type="range" min="8" max="120" step="1" value="48">
+                </label>
+                <label class="stack">
+                    <span><span data-i18n="objectScale">Масштаб</span> <b id="object-scale-value">1.00</b></span>
+                    <input id="object-scale" type="range" min="0.25" max="2.5" step="0.05" value="1" data-i18n-title="objectScaleTitle" title="Масштаб кубов, сфер и цилиндров за стеной. Стена не меняется.">
                 </label>
             </div>
         </details>
         <details class="fold" open>
             <summary><span data-i18n="sectionBuffer">CoverageBuffer</span></summary>
             <div class="fold-body">
-                <label class="stack" id="coverage-width-row">
-                    <span><span data-i18n="coverageWidth">Ширина буфера</span> <b id="coverage-width-value">256</b></span>
-                    <input id="coverage-width" type="range" min="1" max="1024" step="1" value="256" data-i18n-title="coverageWidthTitle" title="Потолок ширины карты Coverage, в текселях. Скачанный размер показан в статистике.">
+                <label id="coverage-width-row">
+                    <span data-i18n="coverageWidth">Макс. ширина</span>
+                    <select id="coverage-width" data-i18n-title="coverageWidthTitle" title="Потолок ширины карты Coverage: 16, 32, 64, 128, 256 или 512 текселей. Скачанный размер показан в статистике.">
+                        <option value="16">16</option>
+                        <option value="32">32</option>
+                        <option value="64">64</option>
+                        <option value="128">128</option>
+                        <option value="256" selected>256</option>
+                        <option value="512">512</option>
+                    </select>
                 </label>
-                <label class="stack" id="coverage-height-row">
-                    <span><span data-i18n="coverageHeight">Высота буфера</span> <b id="coverage-height-value">128</b></span>
-                    <input id="coverage-height" type="range" min="1" max="1024" step="1" value="128" data-i18n-title="coverageHeightTitle" title="Потолок высоты карты Coverage, в текселях. Скачанный размер показан в статистике.">
+                <label id="coverage-height-row">
+                    <span data-i18n="coverageHeight">Макс. высота</span>
+                    <select id="coverage-height" data-i18n-title="coverageHeightTitle" title="Потолок высоты карты Coverage: 16, 32, 64, 128, 256 или 512 текселей. Скачанный размер показан в статистике.">
+                        <option value="16">16</option>
+                        <option value="32">32</option>
+                        <option value="64">64</option>
+                        <option value="128" selected>128</option>
+                        <option value="256">256</option>
+                        <option value="512">512</option>
+                    </select>
                 </label>
-                <label class="stack" id="readback-lag-row">
-                    <span><span data-i18n="minReadbackLag">minReadbackLag</span> <b id="readback-lag-value">2</b></span>
-                    <input id="readback-lag" type="range" min="0" max="16" step="1" value="2" data-i18n-title="minReadbackLagTitle" title="Сколько вызовов frameUpdate ждать, прежде чем скопировать готовое скачивание на CPU. 0 — сразу, как готово. По умолчанию 2.">
+                <label id="readback-slots-row">
+                    <span data-i18n="readbackSlots">readbackSlots</span>
+                    <select id="readback-slots" data-i18n-title="readbackSlotsTitle" title="Сколько чтений GPU→CPU держать в полёте. Минимум 2, по умолчанию 5. Смена сбрасывает ещё не дошедшие скачивания.">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5" selected>5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                    </select>
                 </label>
-                <label class="stack" id="readback-slots-row">
-                    <span><span data-i18n="readbackSlots">readbackSlots</span> <b id="readback-slots-value">5</b></span>
-                    <input id="readback-slots" type="range" min="2" max="16" step="1" value="5" data-i18n-title="readbackSlotsTitle" title="Сколько чтений GPU→CPU держать в полёте. Минимум 2, по умолчанию 5. Смена сбрасывает ещё не дошедшие скачивания.">
+                <label id="readback-lag-row">
+                    <span data-i18n="minReadbackLag">minReadbackLag</span>
+                    <select id="readback-lag" data-i18n-title="minReadbackLagTitle" title="Сколько вызовов frameUpdate ждать, прежде чем скопировать готовое скачивание на CPU. 0 — сразу, как готово. По умолчанию 2.">
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                    </select>
                 </label>
-                <label class="stack" id="readback-period-row" hidden>
-                    <span><span data-i18n="readbackPeriod">readbackPeriod</span> <b id="readback-period-value">1</b></span>
-                    <input id="readback-period" type="range" min="1" max="16" step="1" value="1" data-i18n-title="readbackPeriodTitle" title="Упаковывать карту каждый N-й заход, пока есть свободный слот. Сбор идёт каждый кадр. Только WebGL, по умолчанию 1.">
+                <label id="readback-period-row">
+                    <span data-i18n="readbackPeriod">readbackPeriod</span>
+                    <select id="readback-period" data-i18n-title="readbackPeriodTitle" title="Упаковывать карту каждый N-й заход, пока есть свободный слот. Сбор идёт каждый кадр. По умолчанию 1, на Android — 3.">
+                        <option value="0">0</option>
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                    </select>
                 </label>
                 <label id="cpu-readback-row">
                     <span data-i18n="cpuReadback">cpuReadback</span>

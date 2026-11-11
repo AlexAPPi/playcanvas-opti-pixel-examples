@@ -11,7 +11,6 @@ import {
     GraphicsDevice,
     Keyboard,
     LightComponentSystem,
-    MiniStats,
     Mouse,
     RenderComponentSystem,
     RESOLUTION_AUTO,
@@ -19,11 +18,12 @@ import {
     TouchDevice,
 } from 'playcanvas';
 import { bindControlPanel } from './control-panel.ts';
+import { createOcclusionMiniStats } from './occlusion-mini-stats.ts';
 import { requireElement } from './dom.ts';
 import { FlyCamera } from './fly-camera.ts';
 import { bindLanguageSelect, onLangChange, t } from './i18n.ts';
 import { TesterMode } from './occlusion/modes.ts';
-import { OcclusionScene } from './occlusion/scene.ts';
+import { OcclusionScene, type OcclusionSceneOptions } from './occlusion/scene.ts';
 
 // A hot reload replaces this module while the previous engine is still running.
 const page = globalThis as { __optiPixelApp?: AppBase; __optiPixelSelectGuard?: boolean };
@@ -46,6 +46,50 @@ const nodes = {
 };
 // Filled once the scene is live. Missing markup should fail before the device starts.
 requireElement('#hint');
+
+/** Packed coverage map starts smaller and is captured less often on Android. */
+const ANDROID_COVERAGE = { maxWidth: 128, maxHeight: 64, readbackPeriod: 3 };
+
+function isAndroid(): boolean {
+    if (/Android/i.test(navigator.userAgent)) {
+        return true;
+    }
+    const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
+    return platform === 'Android';
+}
+
+function androidCoverageDefaults(): OcclusionSceneOptions['coverage'] {
+    return isAndroid() ? ANDROID_COVERAGE : undefined;
+}
+
+function sceneOptions(): OcclusionSceneOptions {
+    return {
+        capacity: 100,
+        radius: 48,
+        tester: TesterMode.Coverage,
+        coverage: androidCoverageDefaults(),
+    };
+}
+
+function writeControl(inputId: string, value: number, labelId?: string): void {
+    const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(`#${inputId}`);
+    if (input) {
+        input.value = String(value);
+    }
+    if (labelId) {
+        const label = document.querySelector<HTMLElement>(`#${labelId}`);
+        if (label) {
+            label.textContent = String(value);
+        }
+    }
+}
+
+const androidCoverage = androidCoverageDefaults();
+if (androidCoverage) {
+    writeControl('coverage-width', androidCoverage.maxWidth);
+    writeControl('coverage-height', androidCoverage.maxHeight);
+    writeControl('readback-period', androidCoverage.readbackPeriod);
+}
 
 const languageSelect = document.querySelector<HTMLSelectElement>('#language');
 if (languageSelect) {
@@ -73,11 +117,7 @@ async function boot(): Promise<void> {
         addLight(app);
         const groundMaterial = addGround(app);
         const camera = addCamera(app);
-        const scene = new OcclusionScene(app, camera, {
-            capacity: 30,
-            radius: 48,
-            tester: TesterMode.Coverage,
-        });
+        const scene = new OcclusionScene(app, camera, sceneOptions());
         const flyCamera = new FlyCamera(app, camera, {
             onDebugStep: (delta) => {
                 scene.stepDebugItem(delta);
@@ -85,7 +125,7 @@ async function boot(): Promise<void> {
         });
 
         app.start();
-        const miniStats = new MiniStats(app);
+        const miniStats = createOcclusionMiniStats(app, scene);
         bootStatus = 'live';
         bindControlPanel(app, scene, device);
         app.on('destroy', () => {

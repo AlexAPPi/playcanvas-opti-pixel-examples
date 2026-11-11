@@ -21,6 +21,8 @@ import {
     WebgpuHierarchicalZBuffer,
     WebgpuHZBTester,
     OCCLUSION_OCCLUDED,
+    type ICoverageBufferStats,
+    type ICoverageReadbackStats,
     type IHierarchicalZBuffer,
 } from 'playcanvas-opti-pixel';
 import { CoverageEnqueueGate } from '../coverage-enqueue.ts';
@@ -238,6 +240,19 @@ export class WebgpuHzbOcclusion {
     }
 }
 
+/** Starting cap and capture cadence for the packed coverage map. */
+export interface CoverageBufferOptions {
+    maxWidth: number;
+    maxHeight: number;
+    readbackPeriod: number;
+}
+
+/** Last GPU read and last finished coverage worker job. Both objects are filled in place. */
+export interface CoverageDebugStats {
+    readonly readback: ICoverageReadbackStats;
+    readonly worker: ICoverageBufferStats;
+}
+
 /**
  * Packs one mip of the active HZB into a view-space Z map, downloads it, and
  * tests AABBs on a worker. The pyramid still has to be built every frame.
@@ -246,15 +261,30 @@ export class CoverageOcclusion {
 
     public readonly buffer: WebglCoverageBuffer | WebgpuCoverageBuffer;
     public readonly gate: CoverageEnqueueGate;
+    public readonly debugStats: CoverageDebugStats;
 
     private readonly _tester: CoverageBufferTesterWorker;
     private readonly _overlay: CoverageBufferDebugger;
 
-    public constructor(app: AppBase, device: WebglGraphicsDevice | WebgpuGraphicsDevice, capacity: number) {
+    public constructor(
+        app: AppBase,
+        device: WebglGraphicsDevice | WebgpuGraphicsDevice,
+        capacity: number,
+        options?: CoverageBufferOptions,
+    ) {
+        const maxWidth = options?.maxWidth ?? 256;
+        const maxHeight = options?.maxHeight ?? 128;
         this.buffer = device.isWebGPU ?
-            new WebgpuCoverageBuffer(device as WebgpuGraphicsDevice) :
-            new WebglCoverageBuffer(device as WebglGraphicsDevice);
+            new WebgpuCoverageBuffer(device as WebgpuGraphicsDevice, maxWidth, maxHeight) :
+            new WebglCoverageBuffer(device as WebglGraphicsDevice, maxWidth, maxHeight);
+        if (options) {
+            this.buffer.readbackPeriod = options.readbackPeriod;
+        }
         this._tester = new CoverageBufferTesterWorker(this.buffer, capacity);
+        this.debugStats = {
+            readback: this.buffer.stats,
+            worker: this._tester.stats,
+        };
         this.gate = new CoverageEnqueueGate(this._tester);
         this._overlay = new CoverageBufferDebugger(app, this._tester);
     }
@@ -330,7 +360,12 @@ export interface OcclusionBackends {
     coverage: CoverageOcclusion | null;
 }
 
-export function createOcclusionBackends(app: AppBase, store: AABBStore, capacity: number): OcclusionBackends {
+export function createOcclusionBackends(
+    app: AppBase,
+    store: AABBStore,
+    capacity: number,
+    coverage?: CoverageBufferOptions,
+): OcclusionBackends {
     const device = app.graphicsDevice;
     if (device.isWebGL2) {
         const gl = device as WebglGraphicsDevice;
@@ -338,7 +373,7 @@ export function createOcclusionBackends(app: AppBase, store: AABBStore, capacity
             webgl2Hzb: new Webgl2HzbOcclusion(app, gl, store),
             webgl2Queries: new Webgl2QueriesOcclusion(app, store),
             webgpuHzb: null,
-            coverage: new CoverageOcclusion(app, gl, capacity),
+            coverage: new CoverageOcclusion(app, gl, capacity, coverage),
         };
     }
     if (device.isWebGPU) {
@@ -347,7 +382,7 @@ export function createOcclusionBackends(app: AppBase, store: AABBStore, capacity
             webgl2Hzb: null,
             webgl2Queries: null,
             webgpuHzb: new WebgpuHzbOcclusion(app, gpu, store),
-            coverage: new CoverageOcclusion(app, gpu, capacity),
+            coverage: new CoverageOcclusion(app, gpu, capacity, coverage),
         };
     }
     return {
