@@ -195,6 +195,16 @@ export class OcclusionScene {
     }
 
     /**
+     * Place the GPU harvest after MiniStats has opened its CPU window.
+     * Call once, after `new MiniStats`. The download then counts toward CPU
+     * and still finishes before precull runs `execute`.
+     */
+    public bindHarvestAfterCpuTimer(): void {
+        this._frameUpdateHandle?.off();
+        this._frameUpdateHandle = this._app.on('frameupdate', this._onFrameUpdate, this);
+    }
+
+    /**
      * Packed coverage map size in texels.
      * Until the first download this is the allocation cap.
      */
