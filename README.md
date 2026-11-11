@@ -42,7 +42,7 @@ Objects are split into two groups:
 - **Wall.** Up to 16 boxes in a row in front of the camera. These are the occluders: the other objects hide behind them.
 - **Scatter.** Cubes, spheres, and cylinders behind the wall, within the radius. Colors alternate.
 
-The defaults are 100 objects and a radius of 48. Count ranges from 1 to 2000: extra objects are removed, and new ones extend the wall and the scatter. Radius ranges from 8 to 120. The wall is laid out again, and the scatter is scaled around the center, so relative placement is kept.
+The defaults are 100 objects and a radius of 48. Count ranges from 1 to 10000: extra objects are removed, and new ones extend the wall and the scatter. Radius ranges from 8 to 120. The wall is laid out again, and the scatter is scaled around the center, so relative placement is kept.
 
 While the test is off, objects are culled only by the camera frustum.
 
@@ -117,7 +117,7 @@ For Queries, the debug box is green when the object is visible and red when it i
 
 ### WebGPU
 
-- **HZB / indirect draw.** The pyramid is built by a compute shader or a pixel pass: the HZB render item. The test writes the indirect-draw count, and occluded meshes do not enter the pipeline. The device’s indirect-draw cap is 2048.
+- **HZB / indirect draw.** The pyramid is built by a compute shader or a pixel pass: the HZB render item. The test writes the indirect-draw count, and occluded meshes do not enter the pipeline. The device’s indirect-draw cap is 16384.
 - **Coverage.** The same CPU test as on WebGL2: a pyramid mip is packed by a compute pass and read through staging buffers. Indirect draw is not used.
 
 The pyramid is required for both HZB and Coverage. It is not built in Queries mode or when the test is off.

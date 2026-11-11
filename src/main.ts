@@ -151,7 +151,7 @@ async function createDevice(canvas: HTMLCanvasElement): Promise<GraphicsDevice> 
         alpha: false,
         powerPreference: 'high-performance',
     });
-    device.maxIndirectDrawCount = 2048;
+    device.maxIndirectDrawCount = 16384;
     return device;
 }
 
