@@ -78,6 +78,14 @@ export class Webgl2HzbOcclusion {
         this.tester.frameUpdate(dt);
     }
 
+    public frameRender(): void {
+        this.tester.frameRender();
+    }
+
+    public frameEnd(): void {
+        this.tester.frameEnd();
+    }
+
     public set opacity(value: number) {
         this._overlay.opacity = value;
     }
@@ -309,6 +317,14 @@ export class CoverageOcclusion {
 
     public frameUpdate(dt: number): void {
         this._tester.frameUpdate(dt);
+    }
+
+    public frameRender(): void {
+        this._tester.frameRender();
+    }
+
+    public frameEnd(): void {
+        this._tester.frameEnd();
     }
 
     public execute(camera: Camera): void {

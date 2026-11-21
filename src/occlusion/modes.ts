@@ -24,8 +24,8 @@ export const DepthSource = {
 export type DepthSource = typeof DepthSource[keyof typeof DepthSource];
 
 /**
- * Encoding of `camera.sceneDepthMap` when the source is CameraFrame.
- * Depth grab is always device Z and ignores this.
+ * Encoding of `camera.sceneDepthMapHandle` when the source is CameraFrame.
+ * CameraFrame publishes it with the map. Depth grab is always device Z and ignores this.
  */
 export const DepthEncoding = {
     /** View-space metres in R32F. CameraFrame depth prepass. */

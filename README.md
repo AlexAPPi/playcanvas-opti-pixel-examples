@@ -76,10 +76,13 @@ This block belongs to Coverage mode. The map cap is set in texels; the downloade
 | --- | --- | --- |
 | Buffer width | 256 | Width cap, 1–1024. |
 | Buffer height | 128 | Height cap, 1–1024. |
-| minReadbackLag | 2 | How many `frameUpdate` calls to wait before copying a finished download to the CPU. 0 means as soon as it is ready. |
-| readbackSlots | 5 | How many GPU→CPU reads to keep in flight. Minimum 2. Changing it drops downloads that have not arrived yet. |
-| readbackPeriod | 1 | Pack the map every Nth visit while a slot is free. Gathering still runs every frame. WebGL2 and WebGPU. |
-| cpuReadback | on | When off, capture does not pack the map and does not start a read. A read already in progress is still published. |
+| minReadbackLag | 1 | How many frames after a capture a finished download can be copied to the CPU. Minimum 1, the next frame; a larger value only adds latency. |
+| maxResultAge | 10 | How many frames, counted from the capture, a downloaded map stays valid. Past that the test returns UNKNOWN and objects are drawn. Never less than `minReadbackLag + readbackPeriod`. |
+| readbackSlots | 2 on WebGL2, 5 on WebGPU | How many GPU→CPU reads to keep in flight. Minimum 2. Changing it drops downloads that have not arrived yet. |
+| readbackPeriod | 1 | Pack the map every Nth visit while a slot is free. Publishing still runs every frame. WebGL2 and WebGPU. |
+| cpuReadback | on | When off, capture does not pack the map and does not start a read. A read already in progress is still published, and the map turns stale after `maxResultAge` frames. |
+
+The map is copied to the CPU on `framerender`, after scripts and before the GPU frame starts. On WebGL2 the copy waits until the previous frame has finished on the GPU, so it never stalls the GPU; if the GPU stays a frame behind, no new map arrives and the last one ages out.
 
 ### Debug
 
@@ -124,7 +127,7 @@ The pyramid is required for both HZB and Coverage. It is not built in Queries mo
 
 ### Depth source
 
-HZB reads either the camera depth grab or `camera.sceneDepthMap`, which CameraFrame publishes. Coverage does not read depth itself: it takes the pyramid that has already been built. While the camera has `framePasses` set, `requestSceneDepthMap` does not create a depth capture. The source is switched by the Depth item, and the encoding by the Encoding item.
+HZB reads either the camera depth grab or `camera.sceneDepthMapHandle`, which CameraFrame publishes together with its encoding. Coverage does not read depth itself: it takes the pyramid that has already been built. While the camera has `framePasses` set, `requestSceneDepthMap` does not create a depth capture. The source is switched by the Depth item, and the encoding by the Encoding item.
 
 A depth grab is always device Z. CameraFrame has three encodings: `linear` (meters in R32F, depth prepass), `packed` (the same meters in RGBA8), and `reciprocal` (`1 / viewZ`, scene texture). Reciprocal is enabled through TAA with zero jitter, without blurring the frame by shifting the projection. If a float render target is unavailable, the prepass writes packed on its own, and linear cannot be selected.
 
@@ -135,7 +138,7 @@ A depth grab is always device Z. CameraFrame has three encodings: `linear` (mete
 Format: `device · mode · buffer · depth · in frame N / M`.
 
 - **Buffer** `width×height` appears in Coverage and shows the downloaded map size.
-- **Read** stays up while the first packed map has not yet reached the CPU.
+- **Read** stays up while no fresh packed map is on the CPU: before the first download, and once the last one is older than `maxResultAge` frames.
 - **Object N** is the index of the object opened in debug.
 
 `N` is how many objects were actually drawn, `M` is how many are in the scene. An object behind the wall and outside the frustum is not included in `N`. For Coverage and WebGL2 HZB, visibility arrives a few frames later, so the counter lags the camera slightly.
@@ -148,7 +151,7 @@ Format: `device · mode · buffer · depth · in frame N / M`.
 2. Raise the count into the hundreds and thousands and watch frames per second on WebGPU and WebGL2.
 3. On WebGPU, switch HZB render between Compute and Pixel and turn on Show buffer.
 4. Change Depth and the CameraFrame encoding. Linear disappears from the list if a float render target is unavailable.
-5. In Coverage, shrink the buffer, raise `minReadbackLag`, and turn off `cpuReadback`. While the first read is in progress, the stats show “read”.
+5. In Coverage, shrink the buffer, raise `minReadbackLag`, and turn off `cpuReadback`. While no fresh map is on the CPU, the stats show “read”: before the first download, and `maxResultAge` frames after `cpuReadback` is turned off.
 6. Turn on object debug, step with `+`/`-`, and compare the box with whether the object stayed in frame. Mip fullscreen shows the selected pyramid level or the Coverage map.
 
 ---

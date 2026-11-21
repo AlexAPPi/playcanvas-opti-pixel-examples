@@ -94,8 +94,7 @@ export class CameraDepth {
 
     private _configureCameraFrame(): void {
         const frame = this._frame;
-        const component = this._cameraEntity.camera;
-        if (!frame || !component) {
+        if (!frame) {
             return;
         }
 
@@ -111,13 +110,6 @@ export class CameraDepth {
         frame.bloom.intensity = 0;
         frame.volumetricFog.enabled = false;
         frame.update();
-
-        if (encoding === DepthEncoding.Linear) {
-            const params = component.shaderParams;
-            params.sceneDepthMapLinear = true;
-            params.sceneDepthMapPacked = false;
-            params.sceneDepthMapReciprocal = false;
-        }
     }
 
     private _setDepthGrab(enabled: boolean): void {

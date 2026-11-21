@@ -13,7 +13,7 @@
   "author": "Alexandr Shamarin",
   "license": "ISC",
   "devDependencies": {
-    "playcanvas": "^2.24.0",
+    "playcanvas": "^2.24.2",
     "vite": "^7.1.0"
   },
   "dependencies": {

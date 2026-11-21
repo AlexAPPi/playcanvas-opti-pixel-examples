@@ -58,9 +58,9 @@ function publishCoverageStats(scene: OcclusionScene, user: Map<string, number>):
 
 /**
  * MiniStats with the coverage debug counters in the User section.
- * Publish stays ahead of MiniStats, so Read is the harvest from the frame
- * the CPU counter is showing. Harvest is rebound once the CPU window is open,
- * which puts the WebGL `getBufferSubData` inside that window.
+ * Publish stays ahead of MiniStats, so Read is the copy from the frame
+ * the CPU counter is showing. The copy runs on `framerender`, inside that
+ * CPU window.
  */
 export function createOcclusionMiniStats(app: AppBase, scene: OcclusionScene): MiniStats {
     const options = MiniStats.getDefaultOptions();
@@ -85,7 +85,6 @@ export function createOcclusionMiniStats(app: AppBase, scene: OcclusionScene): M
     };
     const handle = app.on('frameupdate', publish);
     const miniStats = new MiniStats(app, options);
-    scene.bindHarvestAfterCpuTimer();
     app.on('destroy', () => handle.off());
     return miniStats;
 }

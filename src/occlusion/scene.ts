@@ -95,6 +95,7 @@ export class OcclusionScene {
     private _updateHandle: EventHandle | null = null;
     private _postRenderLayerHandle: EventHandle | null = null;
     private _frameUpdateHandle: EventHandle | null = null;
+    private _frameRenderHandle: EventHandle | null = null;
     private _frameEndHandle: EventHandle | null = null;
 
     public constructor(app: AppBase, cameraEntity: Entity, options: OcclusionSceneOptions = {}) {
@@ -113,6 +114,7 @@ export class OcclusionScene {
         this._coverage = backends.coverage;
 
         this._frameUpdateHandle = app.on('frameupdate', this._onFrameUpdate, this);
+        this._frameRenderHandle = app.on('framerender', this._onFrameRender, this);
         this._frameEndHandle = app.on('frameend', this._onFrameEnd, this);
         this._postRenderLayerHandle = app.scene.on(EVENT_POSTRENDER_LAYER, this._onPostRenderLayer, this);
         this._depth.apply();
@@ -178,7 +180,7 @@ export class OcclusionScene {
         return this._coverage !== null;
     }
 
-    /** True after the first packed coverage map has been downloaded. */
+    /** True while the last downloaded coverage map is no older than `maxResultAge` frames. */
     public get coverageReady(): boolean {
         return this._coverage?.ready ?? false;
     }
@@ -192,16 +194,6 @@ export class OcclusionScene {
             return null;
         }
         return this._coverage?.debugStats ?? null;
-    }
-
-    /**
-     * Place the GPU harvest after MiniStats has opened its CPU window.
-     * Call once, after `new MiniStats`. The download then counts toward CPU
-     * and still finishes before precull runs `execute`.
-     */
-    public bindHarvestAfterCpuTimer(): void {
-        this._frameUpdateHandle?.off();
-        this._frameUpdateHandle = this._app.on('frameupdate', this._onFrameUpdate, this);
     }
 
     /**
@@ -239,9 +231,9 @@ export class OcclusionScene {
         buffer.resize(nextWidth, nextHeight);
     }
 
-    /** Frames `frameUpdate` waits before copying a finished download. Default 2. */
+    /** Frames from a capture to its earliest copy to the CPU. Minimum and default 1. */
     public get coverageMinReadbackLag(): number {
-        return this._coverage?.buffer.minReadbackLag ?? 2;
+        return this._coverage?.buffer.minReadbackLag ?? 1;
     }
 
     public setCoverageMinReadbackLag(value: number): void {
@@ -251,9 +243,27 @@ export class OcclusionScene {
         }
     }
 
-    /** In-flight downloads. Minimum 2, default 5. A change drops downloads still in flight. */
+    /**
+     * Frames, counted from the capture, a downloaded map stays valid.
+     * Past that the test returns UNKNOWN. Default 10.
+     */
+    public get coverageMaxResultAge(): number {
+        return this._coverage?.buffer.maxResultAge ?? 10;
+    }
+
+    public setCoverageMaxResultAge(value: number): void {
+        const buffer = this._coverage?.buffer;
+        if (buffer) {
+            buffer.maxResultAge = value;
+        }
+    }
+
+    /**
+     * In-flight downloads. Minimum 2, default 2 on WebGL2 and 5 on WebGPU.
+     * A change drops downloads still in flight.
+     */
     public get coverageReadbackSlots(): number {
-        return this._coverage?.buffer.readbackSlots ?? 5;
+        return this._coverage?.buffer.readbackSlots ?? 2;
     }
 
     public setCoverageReadbackSlots(value: number): void {
@@ -263,7 +273,7 @@ export class OcclusionScene {
         }
     }
 
-    /** Pack every Nth attempt while a slot is free. Harvest still runs every frame. Default 1. */
+    /** Pack every Nth attempt while a slot is free. Publishing still runs every frame. Default 1. */
     public get coverageReadbackPeriod(): number {
         return this._coverage?.buffer.readbackPeriod ?? 1;
     }
@@ -491,11 +501,13 @@ export class OcclusionScene {
         this._updateHandle?.off();
         this._postRenderLayerHandle?.off();
         this._frameUpdateHandle?.off();
+        this._frameRenderHandle?.off();
         this._frameEndHandle?.off();
         this._precullHandle = null;
         this._updateHandle = null;
         this._postRenderLayerHandle = null;
         this._frameUpdateHandle = null;
+        this._frameRenderHandle = null;
         this._frameEndHandle = null;
         this._depth.release();
         this._clearObjects();
@@ -688,7 +700,20 @@ export class OcclusionScene {
         }
     };
 
+    /** WebGL2 copies a finished download only here, after scripts and before the GPU timer opens. */
+    private _onFrameRender = (): void => {
+        this._webgl2Hzb?.frameRender();
+        this._coverage?.frameRender();
+    };
+
     private _onFrameEnd = (): void => {
+        this._buildAndCapture();
+        // Every frame, after the capture: the next frameRender copies only once this frame is fenced.
+        this._webgl2Hzb?.frameEnd();
+        this._coverage?.frameEnd();
+    };
+
+    private _buildAndCapture(): void {
         const camera = this._camera;
         if (!this._autoUpdate || !camera) {
             return;
@@ -701,7 +726,7 @@ export class OcclusionScene {
         if (this._tester === TesterMode.Coverage) {
             this._captureCoverage(camera);
         }
-    };
+    }
 
     private _updatePyramids(camera: Camera): void {
         const useSceneDepth = this._depth.useSceneDepthMap;

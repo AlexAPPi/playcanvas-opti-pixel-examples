@@ -409,12 +409,12 @@
                 </label>
                 <label id="readback-slots-row">
                     <span data-i18n="readbackSlots">readbackSlots</span>
-                    <select id="readback-slots" data-i18n-title="readbackSlotsTitle" title="Сколько чтений GPU→CPU держать в полёте. Минимум 2, по умолчанию 5. Смена сбрасывает ещё не дошедшие скачивания.">
+                    <select id="readback-slots" data-i18n-title="readbackSlotsTitle" title="Сколько чтений GPU→CPU держать в полёте. Минимум 2, по умолчанию 2 на WebGL2 и 5 на WebGPU. Смена сбрасывает ещё не дошедшие скачивания.">
                         <option value="1">1</option>
-                        <option value="2">2</option>
+                        <option value="2" selected>2</option>
                         <option value="3">3</option>
                         <option value="4">4</option>
-                        <option value="5" selected>5</option>
+                        <option value="5">5</option>
                         <option value="6">6</option>
                         <option value="7">7</option>
                         <option value="8">8</option>
@@ -422,10 +422,9 @@
                 </label>
                 <label id="readback-lag-row">
                     <span data-i18n="minReadbackLag">minReadbackLag</span>
-                    <select id="readback-lag" data-i18n-title="minReadbackLagTitle" title="Сколько вызовов frameUpdate ждать, прежде чем скопировать готовое скачивание на CPU. 0 — сразу, как готово. По умолчанию 2.">
-                        <option value="0">0</option>
-                        <option value="1">1</option>
-                        <option value="2" selected>2</option>
+                    <select id="readback-lag" data-i18n-title="minReadbackLagTitle" title="Через сколько кадров после захвата готовое скачивание можно скопировать на CPU. Минимум 1 — следующий кадр, больше только добавляет задержку. По умолчанию 1.">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
                         <option value="3">3</option>
                         <option value="4">4</option>
                         <option value="5">5</option>
@@ -436,9 +435,26 @@
                         <option value="10">10</option>
                     </select>
                 </label>
+                <label id="max-result-age-row">
+                    <span data-i18n="maxResultAge">maxResultAge</span>
+                    <select id="max-result-age" data-i18n-title="maxResultAgeTitle" title="Сколько кадров, считая от захвата, скачанная карта остаётся годной. Дальше тест возвращает UNKNOWN и объекты рисуются. Не меньше minReadbackLag + readbackPeriod. По умолчанию 10.">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="8">8</option>
+                        <option value="10" selected>10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="60">60</option>
+                    </select>
+                </label>
                 <label id="readback-period-row">
                     <span data-i18n="readbackPeriod">readbackPeriod</span>
-                    <select id="readback-period" data-i18n-title="readbackPeriodTitle" title="Упаковывать карту каждый N-й заход, пока есть свободный слот. Сбор идёт каждый кадр. По умолчанию 1, на Android — 3.">
+                    <select id="readback-period" data-i18n-title="readbackPeriodTitle" title="Упаковывать карту каждый N-й заход, пока есть свободный слот. Публикация идёт каждый кадр. По умолчанию 1, на Android — 3.">
                         <option value="0">0</option>
                         <option value="1" selected>1</option>
                         <option value="2">2</option>
@@ -454,7 +470,7 @@
                 </label>
                 <label id="cpu-readback-row">
                     <span data-i18n="cpuReadback">cpuReadback</span>
-                    <input id="cpu-readback" type="checkbox" checked data-i18n-title="cpuReadbackTitle" title="Когда выключено, capture не пакует карту и не начинает чтение. Уже запущенное чтение всё равно публикуется.">
+                    <input id="cpu-readback" type="checkbox" checked data-i18n-title="cpuReadbackTitle" title="Когда выключено, capture не пакует карту и не начинает чтение. Уже запущенное чтение всё равно публикуется, а через maxResultAge кадров карта устаревает.">
                 </label>
             </div>
         </details>

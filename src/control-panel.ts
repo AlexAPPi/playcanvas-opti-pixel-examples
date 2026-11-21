@@ -21,10 +21,12 @@ interface PanelElements {
     coverageWidth: HTMLSelectElement;
     coverageHeight: HTMLSelectElement;
     readbackLagRow: HTMLElement;
+    maxResultAgeRow: HTMLElement;
     readbackSlotsRow: HTMLElement;
     readbackPeriodRow: HTMLElement;
     cpuReadbackRow: HTMLElement;
     readbackLag: HTMLSelectElement;
+    maxResultAge: HTMLSelectElement;
     readbackSlots: HTMLSelectElement;
     readbackPeriod: HTMLSelectElement;
     cpuReadback: HTMLInputElement;
@@ -153,6 +155,7 @@ class ControlPanel {
         const scene = this._scene;
         const ui = this._ui;
         ui.readbackLag.value = String(scene.coverageMinReadbackLag);
+        ui.maxResultAge.value = String(scene.coverageMaxResultAge);
         ui.readbackSlots.value = String(scene.coverageReadbackSlots);
         ui.readbackPeriod.value = String(scene.coverageReadbackPeriod);
         ui.cpuReadback.checked = scene.coverageCpuReadback;
@@ -243,6 +246,10 @@ class ControlPanel {
             scene.setCoverageMinReadbackLag(Number(ui.readbackLag.value));
             ui.readbackLag.value = String(scene.coverageMinReadbackLag);
         });
+        ui.maxResultAge.addEventListener('change', () => {
+            scene.setCoverageMaxResultAge(Number(ui.maxResultAge.value));
+            ui.maxResultAge.value = String(scene.coverageMaxResultAge);
+        });
         ui.readbackPeriod.addEventListener('change', () => {
             scene.setCoverageReadbackPeriod(Number(ui.readbackPeriod.value));
             ui.readbackPeriod.value = String(scene.coverageReadbackPeriod);
@@ -314,10 +321,12 @@ class ControlPanel {
         ui.coverageWidth.disabled = !coverage;
         ui.coverageHeight.disabled = !coverage;
         ui.readbackLagRow.hidden = !coverage;
+        ui.maxResultAgeRow.hidden = !coverage;
         ui.readbackSlotsRow.hidden = !coverage;
         ui.readbackPeriodRow.hidden = !coverage;
         ui.cpuReadbackRow.hidden = !coverage;
         ui.readbackLag.disabled = !coverage;
+        ui.maxResultAge.disabled = !coverage;
         ui.readbackSlots.disabled = !coverage;
         ui.readbackPeriod.disabled = !coverage;
         ui.cpuReadback.disabled = !coverage;
@@ -362,10 +371,12 @@ function readPanelElements(): PanelElements {
         coverageWidth: requireElement('#coverage-width'),
         coverageHeight: requireElement('#coverage-height'),
         readbackLagRow: requireElement('#readback-lag-row'),
+        maxResultAgeRow: requireElement('#max-result-age-row'),
         readbackSlotsRow: requireElement('#readback-slots-row'),
         readbackPeriodRow: requireElement('#readback-period-row'),
         cpuReadbackRow: requireElement('#cpu-readback-row'),
         readbackLag: requireElement('#readback-lag'),
+        maxResultAge: requireElement('#max-result-age'),
         readbackSlots: requireElement('#readback-slots'),
         readbackPeriod: requireElement('#readback-period'),
         cpuReadback: requireElement('#cpu-readback'),
